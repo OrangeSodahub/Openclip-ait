@@ -1,5 +1,6 @@
 import click
 import logging
+from regex import R
 import torch
 import numpy as np
 
@@ -32,20 +33,34 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
 
     pt_params = dict(pt_mod.named_parameters())
     for key, arr in pt_params.items():
-        name = key.replace("resblocks.", "encode.layers.")
+        name = key.replace("transformer", "encoder")
+        name = name.replace("resblocks", "layers")
+        name = name.replace("positional_embedding", "embeddings.position_embedding.weight")
+        name = name.replace("token_embedding", "embeddings.token_embedding")
         name = name.replace("ln_1", "layer_norm1")
         name = name.replace("ln_2", "layer_norm2")
+        name = name.replace("ln_final", "final_layer_norm")
         name = name.replace("attn", "self_attn")
+        name = name.replace("c_fc", "fc1")
+        name = name.replace("c_proj", "fc2")
         ait_name = name.replace(".", "_")
-        print(ait_name)
+        if name.startswith("visual") or name == 'logit_scale' or name == 'text_projection':
+            continue
         if name.endswith("out_proj.weight"):
             ait_name = ait_name.replace("out_proj", "proj")
         elif name.endswith("out_proj.bias"):
             ait_name = ait_name.replace("out_proj", "proj")
-        elif name.endswith("in_proj.weight"):
+        elif name.endswith("in_proj_weight"):
             ait_name = ait_name.replace("in_proj", "qkv")
-        elif name.endswith("in_proj.bias"):
+        elif name.endswith("in_proj_bias"):
             ait_name = ait_name.replace("in_proj", "qkv")
+
+        if ('fina_layer_norm' in ait_name
+            or ait_name == 'embeddings_token_embedding_weight'
+            or ait_name == 'embeddings_position_embedding_weight'
+        ):
+            arr.data = arr.data.half()
+        print(ait_name)
         params_ait[ait_name] = arr
 
         if USE_CUDA:
@@ -86,7 +101,7 @@ def compile_clip(
     # load pytorch model
     openclip_mod = OpenCLIPModel(name='ViT-B-32::laion400m_e31', device='cuda')
     # textmodel
-    pt_mod = openclip_mod._model.transformer
+    pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)
 

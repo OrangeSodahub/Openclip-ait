@@ -54,9 +54,15 @@ class OpenCLIPModel(CLIPModel):
 
 def test():
     model = OpenCLIPModel(name='ViT-B-32::laion400m_e31', device='cuda')
-    pt_mod = list(model._model.transformer.named_parameters())
-    print(len(pt_mod))
-
-    pt_params = dict(model._model.transformer.named_parameters())
+    pt_params = dict(model._model.named_parameters())
     for key, arr in pt_params.items():
-        print(key)
+        print(key, arr.dtype)
+    
+    # pt_mod = list(model._model.transformer.named_parameters())
+    # print(len(pt_mod))
+
+    # pt_params = dict(model._model.transformer.named_parameters())
+    # for key, arr in pt_params.items():
+    #     print(key)
+
+test()
