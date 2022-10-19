@@ -1,0 +1,679 @@
+(Tensor(name=reshape_0_0, shape=64)) 
+= reshape()(
+Tensor(name=input0, shape=1, 64), shape=[-1])
+
+(Tensor(name=batch_gather_1_0, shape=64, 768)) 
+= batch_gather()(
+Tensor(name=embeddings_token_embedding_weight, shape=49408, 768), Tensor(name=reshape_0_0, shape=64))
+
+(Tensor(name=reshape_2_0, shape=64)) 
+= reshape()(
+Tensor(name=input1, shape=1, 64), shape=[-1])
+
+(Tensor(name=batch_gather_3_0, shape=64, 768)) 
+= batch_gather()(
+Tensor(name=embeddings_position_embedding_weight, shape=77, 768), Tensor(name=reshape_2_0, shape=64))
+
+(Tensor(name=elementwise_4_0, shape=64, 768)) 
+= fused_elementwise(FuncEnum.ADD)(
+Tensor(name=batch_gather_3_0, shape=64, 768), Tensor(name=batch_gather_1_0, shape=64, 768))
+
+(IntVarTensor(1), IntVarTensor(64)) 
+= size()(
+Tensor(name=input0, shape=1, 64))
+
+(Tensor(name=reshape_6_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=elementwise_4_0, shape=64, 768), shape=[1, 64, -1])
+
+(Tensor(name=layernorm_7_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_6_0, shape=1, 64, 768), Tensor(name=encoder_layers_0_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_0_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_8_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_7_0, shape=1, 64, 768), Tensor(name=encoder_layers_0_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_0_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_9_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_8_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_10_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_9_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_0_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_11_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_10_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_12_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_11_0, shape=64, 768),
+Tensor(name=encoder_layers_0_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_0_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_6_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_13_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_12_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_14_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_13_0, shape=1, 64, 768), Tensor(name=encoder_layers_0_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_0_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_15_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_14_0, shape=1, 64, 768), Tensor(name=encoder_layers_0_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_0_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_18_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_15_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_19_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_18_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_0_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_0_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_13_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_20_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_19_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_21_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_20_0, shape=1, 64, 768), Tensor(name=encoder_layers_1_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_1_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_22_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_21_0, shape=1, 64, 768), Tensor(name=encoder_layers_1_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_1_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_23_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_22_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_24_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_23_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_1_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_25_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_24_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_26_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_25_0, shape=64, 768),
+Tensor(name=encoder_layers_1_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_1_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_20_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_27_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_26_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_28_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_27_0, shape=1, 64, 768), Tensor(name=encoder_layers_1_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_1_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_29_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_28_0, shape=1, 64, 768), Tensor(name=encoder_layers_1_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_1_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_32_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_29_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_33_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_32_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_1_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_1_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_27_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_34_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_33_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_35_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_34_0, shape=1, 64, 768), Tensor(name=encoder_layers_2_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_2_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_36_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_35_0, shape=1, 64, 768), Tensor(name=encoder_layers_2_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_2_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_37_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_36_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_38_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_37_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_2_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_39_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_38_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_40_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_39_0, shape=64, 768),
+Tensor(name=encoder_layers_2_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_2_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_34_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_41_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_40_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_42_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_41_0, shape=1, 64, 768), Tensor(name=encoder_layers_2_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_2_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_43_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_42_0, shape=1, 64, 768), Tensor(name=encoder_layers_2_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_2_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_46_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_43_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_47_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_46_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_2_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_2_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_41_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_48_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_47_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_49_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_48_0, shape=1, 64, 768), Tensor(name=encoder_layers_3_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_3_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_50_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_49_0, shape=1, 64, 768), Tensor(name=encoder_layers_3_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_3_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_51_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_50_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_52_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_51_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_3_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_53_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_52_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_54_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_53_0, shape=64, 768),
+Tensor(name=encoder_layers_3_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_3_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_48_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_55_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_54_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_56_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_55_0, shape=1, 64, 768), Tensor(name=encoder_layers_3_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_3_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_57_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_56_0, shape=1, 64, 768), Tensor(name=encoder_layers_3_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_3_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_60_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_57_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_61_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_60_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_3_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_3_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_55_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_62_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_61_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_63_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_62_0, shape=1, 64, 768), Tensor(name=encoder_layers_4_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_4_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_64_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_63_0, shape=1, 64, 768), Tensor(name=encoder_layers_4_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_4_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_65_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_64_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_66_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_65_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_4_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_67_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_66_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_68_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_67_0, shape=64, 768),
+Tensor(name=encoder_layers_4_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_4_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_62_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_69_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_68_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_70_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_69_0, shape=1, 64, 768), Tensor(name=encoder_layers_4_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_4_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_71_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_70_0, shape=1, 64, 768), Tensor(name=encoder_layers_4_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_4_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_74_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_71_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_75_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_74_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_4_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_4_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_69_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_76_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_75_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_77_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_76_0, shape=1, 64, 768), Tensor(name=encoder_layers_5_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_5_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_78_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_77_0, shape=1, 64, 768), Tensor(name=encoder_layers_5_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_5_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_79_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_78_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_80_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_79_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_5_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_81_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_80_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_82_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_81_0, shape=64, 768),
+Tensor(name=encoder_layers_5_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_5_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_76_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_83_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_82_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_84_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_83_0, shape=1, 64, 768), Tensor(name=encoder_layers_5_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_5_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_85_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_84_0, shape=1, 64, 768), Tensor(name=encoder_layers_5_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_5_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_88_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_85_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_89_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_88_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_5_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_5_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_83_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_90_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_89_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_91_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_90_0, shape=1, 64, 768), Tensor(name=encoder_layers_6_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_6_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_92_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_91_0, shape=1, 64, 768), Tensor(name=encoder_layers_6_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_6_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_93_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_92_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_94_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_93_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_6_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_95_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_94_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_96_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_95_0, shape=64, 768),
+Tensor(name=encoder_layers_6_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_6_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_90_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_97_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_96_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_98_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_97_0, shape=1, 64, 768), Tensor(name=encoder_layers_6_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_6_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_99_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_98_0, shape=1, 64, 768), Tensor(name=encoder_layers_6_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_6_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_102_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_99_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_103_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_102_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_6_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_6_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_97_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_104_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_103_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_105_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_104_0, shape=1, 64, 768), Tensor(name=encoder_layers_7_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_7_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_106_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_105_0, shape=1, 64, 768), Tensor(name=encoder_layers_7_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_7_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_107_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_106_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_108_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_107_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_7_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_109_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_108_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_110_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_109_0, shape=64, 768),
+Tensor(name=encoder_layers_7_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_7_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_104_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_111_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_110_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_112_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_111_0, shape=1, 64, 768), Tensor(name=encoder_layers_7_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_7_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_113_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_112_0, shape=1, 64, 768), Tensor(name=encoder_layers_7_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_7_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_116_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_113_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_117_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_116_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_7_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_7_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_111_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_118_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_117_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_119_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_118_0, shape=1, 64, 768), Tensor(name=encoder_layers_8_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_8_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_120_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_119_0, shape=1, 64, 768), Tensor(name=encoder_layers_8_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_8_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_121_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_120_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_122_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_121_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_8_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_123_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_122_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_124_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_123_0, shape=64, 768),
+Tensor(name=encoder_layers_8_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_8_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_118_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_125_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_124_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_126_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_125_0, shape=1, 64, 768), Tensor(name=encoder_layers_8_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_8_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_127_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_126_0, shape=1, 64, 768), Tensor(name=encoder_layers_8_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_8_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_130_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_127_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_131_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_130_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_8_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_8_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_125_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_132_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_131_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_133_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_132_0, shape=1, 64, 768), Tensor(name=encoder_layers_9_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_9_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_134_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_133_0, shape=1, 64, 768), Tensor(name=encoder_layers_9_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_9_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_135_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_134_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_136_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_135_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_9_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_137_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_136_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_138_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_137_0, shape=64, 768),
+Tensor(name=encoder_layers_9_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_9_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_132_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_139_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_138_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_140_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_139_0, shape=1, 64, 768), Tensor(name=encoder_layers_9_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_9_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_141_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_140_0, shape=1, 64, 768), Tensor(name=encoder_layers_9_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_9_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_144_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_141_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_145_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_144_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_9_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_9_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_139_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_146_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_145_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_147_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_146_0, shape=1, 64, 768), Tensor(name=encoder_layers_10_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_10_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_148_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_147_0, shape=1, 64, 768), Tensor(name=encoder_layers_10_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_10_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_149_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_148_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_150_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_149_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_10_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_151_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_150_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_152_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_151_0, shape=64, 768),
+Tensor(name=encoder_layers_10_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_10_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_146_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_153_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_152_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_154_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_153_0, shape=1, 64, 768), Tensor(name=encoder_layers_10_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_10_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_155_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_154_0, shape=1, 64, 768), Tensor(name=encoder_layers_10_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_10_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_158_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_155_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_159_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_158_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_10_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_10_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_153_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_160_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_159_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_161_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_160_0, shape=1, 64, 768), Tensor(name=encoder_layers_11_layer_norm1_weight, shape=768), Tensor(name=encoder_layers_11_layer_norm1_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_162_0, shape=1, 64, 2304)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_161_0, shape=1, 64, 768), Tensor(name=encoder_layers_11_self_attn_qkv_weight, shape=2304, 768), Tensor(name=encoder_layers_11_self_attn_qkv_bias, shape=2304))
+
+(Tensor(name=reshape_163_0, shape=64, 3, 12, 64)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_162_0, shape=1, 64, 2304), shape=[64, 3, 12, 64])
+
+(Tensor(name=flash_attention_164_0, shape=64, 12, 64)) 
+= flash_attention()(
+Tensor(name=reshape_163_0, shape=64, 3, 12, 64), Tensor(name=encoder_layers_11_self_attn_cu_length, shape=2, data=(8 bytes)))
+
+(Tensor(name=reshape_165_0, shape=64, 768)) 
+= reshape()(
+Tensor(name=flash_attention_164_0, shape=64, 12, 64), shape=[64, -1])
+
+(Tensor(name=gemm_rcr_bias_add_166_0, shape=64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=reshape_165_0, shape=64, 768),
+Tensor(name=encoder_layers_11_self_attn_proj_weight, shape=768, 768),
+Tensor(name=encoder_layers_11_self_attn_proj_bias, shape=768),
+Tensor(name=reshape_160_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_167_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_166_0, shape=64, 768), shape=[1, 64, 768])
+
+(Tensor(name=layernorm_168_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_167_0, shape=1, 64, 768), Tensor(name=encoder_layers_11_layer_norm2_weight, shape=768), Tensor(name=encoder_layers_11_layer_norm2_bias, shape=768))
+
+(Tensor(name=gemm_rcr_bias_169_0, shape=1, 64, 3072)) 
+= gemm_rcr_bias()(
+Tensor(name=layernorm_168_0, shape=1, 64, 768), Tensor(name=encoder_layers_11_mlp_fc1_weight, shape=3072, 768), Tensor(name=encoder_layers_11_mlp_fc1_bias, shape=3072))
+
+(Tensor(name=elementwise_172_0, shape=1, 64, 3072)) 
+= fused_elementwise(FuncEnum.MUL, FuncEnum.SIGMOID, FuncEnum.MUL)(
+Tensor(name=gemm_rcr_bias_169_0, shape=1, 64, 3072))
+
+(Tensor(name=gemm_rcr_bias_add_173_0, shape=1, 64, 768)) 
+= gemm_rcr_bias_add()(
+Tensor(name=elementwise_172_0, shape=1, 64, 3072),
+Tensor(name=encoder_layers_11_mlp_fc2_weight, shape=768, 3072),
+Tensor(name=encoder_layers_11_mlp_fc2_bias, shape=768),
+Tensor(name=reshape_167_0, shape=1, 64, 768))
+
+(Tensor(name=reshape_174_0, shape=1, 64, 768)) 
+= reshape()(
+Tensor(name=gemm_rcr_bias_add_173_0, shape=1, 64, 768), shape=[1, 64, 768])
+
+(Tensor(name=output_0, shape=1, 64, 768)) 
+= layernorm()(
+Tensor(name=reshape_174_0, shape=1, 64, 768), Tensor(name=final_layer_norm_weight, shape=768), Tensor(name=final_layer_norm_bias, shape=768))

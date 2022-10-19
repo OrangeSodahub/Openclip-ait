@@ -1,0 +1,3 @@
+[submodule "aitemplate"]
+    path = aitemplate
+    url = https://github.com/facebookincubator/aitemplate.git
