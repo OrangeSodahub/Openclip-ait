@@ -33,7 +33,7 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
 
     pt_params = dict(pt_mod.named_parameters())
     for key, arr in pt_params.items():
-        name = key.replace("transformer", "")
+        name = key.replace("transformer.", "")
         ait_name = name.replace(".", "_")
         if name.startswith("visual"):
             continue
@@ -45,6 +45,10 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
             ait_name = ait_name.replace("in_proj", "qkv")
         elif name.endswith("in_proj_bias"):
             ait_name = ait_name.replace("in_proj", "qkv")
+
+        if arr.dtype == torch.float32:
+            arr.data = arr.data.half()
+        print(f"name:{ait_name}, shape:{arr.shape}")
         params_ait[ait_name] = arr
 
         if USE_CUDA:
@@ -56,12 +60,13 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
     return params_ait
 
 
+# ATTENTION: the cfgs of model
 def compile_clip(
     batch_size=1,
     seqlen=64,
     dim=768,
-    num_heads=12,
-    hidden_size=768,
+    num_heads=8,
+    hidden_size=512,
     vocab_size=49408,
     max_position_embeddings=77,
     use_fp16_acc=False,
@@ -88,7 +93,7 @@ def compile_clip(
     ait_mod.name_parameter_tensor()
 
     # load pytorch model
-    openclip_mod = OpenCLIPModel(name='ViT-B-32::laion400m_e31', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-B-16::laion400m_e31', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)

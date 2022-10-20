@@ -67,17 +67,17 @@ class ResidualAttentionBlock(nn.Module):
             causal=causal,
             mask_seq=mask_seq
         )
-        self.ln_attn = nn.LayerNorm(d_model) if scale_attn else nn.Identity()
+        self.ln_attn = nn.LayerNorm(d_model, dtype="float16") if scale_attn else nn.Identity()
 
-        self.ln_1 = nn.LayerNorm(d_model)
-        self.ln_2 = nn.LayerNorm(d_model)
+        self.ln_1 = nn.LayerNorm(d_model, dtype="float16")
+        self.ln_2 = nn.LayerNorm(d_model, dtype="float16")
         mlp_width = int(d_model * mlp_ratio)
         # CLIPMLP
         self.mlp = nn.Sequential(OrderedDict([
-            ("c_fc", nn.Linear(d_model, mlp_width)),
-            ('ln', nn.LayerNorm(mlp_width) if scale_fc else nn.Identity()),
+            ("c_fc", nn.Linear(d_model, mlp_width, dtype="float16")),
+            ('ln', nn.LayerNorm(mlp_width, dtype="float16") if scale_fc else nn.Identity()),
             ("gelu", act_layer),
-            ("c_proj", nn.Linear(mlp_width, d_model))
+            ("c_proj", nn.Linear(mlp_width, d_model, dtype="float16"))
         ]))
 
     def attention(self, x: Tensor, attn_mask: Optional[Tensor] = None):
@@ -205,7 +205,7 @@ class CLIPTextTransformer(nn.Module):
         self.vocab_size = text_cfg.vocab_size
         self.token_embedding = nn.Embedding(shape=[text_cfg.vocab_size, text_cfg.width], dtype="float16")
         self.positional_embedding = nn.Parameter(shape=[self.context_length, text_cfg.width], dtype="float16") # no initialization
-        self.ln_final = nn.LayerNorm(text_cfg.width)
+        self.ln_final = nn.LayerNorm(text_cfg.width, dtype="float16")
 
         self.text_projection = nn.Parameter(shape=[text_cfg.width, embed_dim], dtype="float16")
         self.logit_scale = nn.Parameter(shape=[], dtype="float16")
