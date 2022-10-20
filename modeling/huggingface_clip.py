@@ -240,8 +240,8 @@ class CLIPAttention(nn.Module):
 
     def __init__(
         self,
-        hidden_size=768,
-        num_attention_heads=12,
+        hidden_size=512,
+        num_attention_heads=8,
         attention_dropout=0.0,
         batch_size=1,
         seq_len=16,
@@ -324,8 +324,8 @@ class CLIPMLP(nn.Module):
 class CLIPEncoderLayer(nn.Module):
     def __init__(
         self,
-        hidden_size=768,
-        num_attention_heads=12,
+        hidden_size=512,
+        num_attention_heads=8,
         attention_dropout=0.0,
         mlp_ratio=4.0,
         batch_size=1,
@@ -392,8 +392,8 @@ class CLIPEncoder(nn.Module):
         output_attentions=False,
         output_hidden_states=False,
         use_return_dict=False,
-        hidden_size=768,
-        num_attention_heads=12,
+        hidden_size=512,
+        num_attention_heads=8,
         batch_size=1,
         seq_len=64,
         causal=False,
@@ -479,7 +479,7 @@ class CLIPEncoder(nn.Module):
 class CLIPTextEmbeddings(nn.Module):
     def __init__(
         self,
-        hidden_size=768,
+        hidden_size=512,
         vocab_size=49408,
         max_position_embeddings=77,
         dtype="float16",
@@ -523,12 +523,12 @@ class CLIPTextEmbeddings(nn.Module):
 class CLIPTextTransformer(nn.Module):
     def __init__(
         self,
-        hidden_size=768,
+        hidden_size=512,
         output_attentions=False,
         output_hidden_states=False,
         use_return_dict=False,
         num_hidden_layers=12,
-        num_attention_heads=12,
+        num_attention_heads=8,
         batch_size=1,
         seq_len=64,
         causal=False,
