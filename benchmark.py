@@ -27,6 +27,7 @@ from diffusers import StableDiffusionPipeline
 from torch import autocast
 # from transformers import CLIPTokenizer
 from clip_server.model.tokenization import Tokenizer
+from open_clip import tokenizer
 
 USE_CUDA = detect_target().name() == "cuda"
 
@@ -52,9 +53,9 @@ def mark_output(y):
 def benchmark_clip(
     batch_size=1,
     seqlen=64,
-    dim=768,
-    num_heads=12,
-    hidden_size=768,
+    dim=512,
+    num_heads=8,
+    hidden_size=512,
     vocab_size=49408,
     max_position_embeddings=77,
     benchmark_pt=False,
@@ -63,7 +64,7 @@ def benchmark_clip(
     mask_seq = 0
     version = "ViT-B-32::laion400m_e31"
 
-    exe_module = Model("/home/zonlin/Jina/tmp/CLIPTextModel/test.so")
+    exe_module = Model("/home/zonlin/Jina/openclip-ait/tmp/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
         exit(-1)
@@ -72,19 +73,20 @@ def benchmark_clip(
     # pt_mod = pipe.text_encoder
     # pt_mod = pt_mod.eval()
 
-    tokenizer = Tokenizer(version)
-    text_input = tokenizer(
-        ["a photo of an astronaut riding a horse on mars"],
-        context_length=seqlen,
-        truncate=True,
-    )
-    input_ids = text_input["input_ids"].cuda()
+    # tokenizer = Tokenizer(version)
+    # text_input = tokenizer(
+    #     ["a photo of an astronaut riding a horse on mars"],
+    #     context_length=seqlen,
+    #     truncate=True,
+    # )
+    # input_ids = text_input["input_ids"].cuda()
+    text = tokenizer.tokenize(["a diagram"]).cuda()
 
-    attention_mask = torch.ones((batch_size, seqlen))
-    attention_mask[-1, -mask_seq:] = 0
-    attention_mask = None
+    # attention_mask = torch.ones((batch_size, seqlen))
+    # attention_mask[-1, -mask_seq:] = 0
+    # attention_mask = None
 
-    position_ids = torch.arange(seqlen).expand((batch_size, -1)).cuda()
+    # position_ids = torch.arange(seqlen).expand((batch_size, -1)).cuda()
     # pt_ys = pt_mod(input_ids, attention_mask, position_ids)
     # print("pt output:", pt_ys[0].shape)
 
@@ -97,16 +99,18 @@ def benchmark_clip(
     #         f.write(f"clip batch_size: {batch_size}, latency: {pt_time} ms\n")
 
     # run AIT clip
-    inputs = {
-        "input0": input_ids,
-        "input1": position_ids,
-    }
+    # inputs = {
+    #     "input0": input_ids,
+    #     "input1": position_ids,
+    # }
     ys = []
     num_ouputs = len(exe_module.get_output_name_to_index_map())
+    print(f"num_outputs is {num_ouputs}")
     for i in range(num_ouputs):
         shape = exe_module.get_output_maximum_shape(i)
+        print(f"shape is {shape}")
         ys.append(torch.empty(shape).cuda().half())
-    exe_module.run_with_tensors(inputs, ys)
+    # exe_module.run_with_tensors(inputs, ys)
 
     # verification
     # if verify:
@@ -120,11 +124,14 @@ def benchmark_clip(
     #     )
     #     print("CLIPTextTransformer verification pass")
 
+    # for test
+    input_ids_ait = torch.ones((1, 1, 77), dtype=torch.int).long().cuda()
+
     # AIT benchmark
     # warmup
-    exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
+    exe_module.benchmark_with_tensors(inputs=input_ids_ait, outputs=ys, count=100, repeat=4)
     # benchmark
-    t, _, _ = exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
+    t, _, _ = exe_module.benchmark_with_tensors(inputs=input_ids_ait, outputs=ys, count=100, repeat=4)
     with open("sd_ait_benchmark.txt", "a") as f:
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
 

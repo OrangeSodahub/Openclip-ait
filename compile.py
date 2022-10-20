@@ -33,7 +33,7 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
 
     pt_params = dict(pt_mod.named_parameters())
     for key, arr in pt_params.items():
-        name = key.replace("transformer.", "")
+        name = key
         ait_name = name.replace(".", "_")
         if name.startswith("visual"):
             continue
@@ -51,11 +51,13 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
         print(f"name:{ait_name}, shape:{arr.shape}")
         params_ait[ait_name] = arr
 
+        # TODO: prefix changed
         if USE_CUDA:
             for i in range(depth):
-                prefix = "encoder_layers_%d_self_attn_cu_length" % (i)
+                prefix = "transformer_resblocks_%d_attn_cu_length" % (i)
                 cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
                 params_ait[prefix] = torch.from_numpy(cu_len).cuda()
+                print(f"prefix:{prefix}, param:{params_ait[prefix]}")
 
     return params_ait
 
@@ -97,6 +99,7 @@ def compile_clip(
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)
+    print(f"num of params: {len(params_ait)}")
 
     input_ids_ait = Tensor(
         [batch_size, max_position_embeddings], name="input", dtype="int64", is_input=True
