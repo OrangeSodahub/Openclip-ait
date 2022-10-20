@@ -8,7 +8,7 @@ from aitemplate.testing import detect_target
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import Tensor
 from diffusers import StableDiffusionPipeline
-from modeling.clip import CLIPTextTransformer as ait_CLIPTextTransformer
+from modeling.openclip import CLIPTextTransformer as ait_CLIPTextTransformer
 from modeling.openclip_model import OpenCLIPModel
 
 
@@ -33,18 +33,9 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
 
     pt_params = dict(pt_mod.named_parameters())
     for key, arr in pt_params.items():
-        name = key.replace("transformer", "encoder")
-        name = name.replace("resblocks", "layers")
-        name = name.replace("positional_embedding", "embeddings.position_embedding.weight")
-        name = name.replace("token_embedding", "embeddings.token_embedding")
-        name = name.replace("ln_1", "layer_norm1")
-        name = name.replace("ln_2", "layer_norm2")
-        name = name.replace("ln_final", "final_layer_norm")
-        name = name.replace("attn", "self_attn")
-        name = name.replace("c_fc", "fc1")
-        name = name.replace("c_proj", "fc2")
+        name = key.replace("transformer", "")
         ait_name = name.replace(".", "_")
-        if name.startswith("visual") or name == 'logit_scale' or name == 'text_projection':
+        if name.startswith("visual"):
             continue
         if name.endswith("out_proj.weight"):
             ait_name = ait_name.replace("out_proj", "proj")
@@ -54,13 +45,6 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
             ait_name = ait_name.replace("in_proj", "qkv")
         elif name.endswith("in_proj_bias"):
             ait_name = ait_name.replace("in_proj", "qkv")
-
-        if ('fina_layer_norm' in ait_name
-            or ait_name == 'embeddings_token_embedding_weight'
-            or ait_name == 'embeddings_position_embedding_weight'
-        ):
-            arr.data = arr.data.half()
-        print(ait_name)
         params_ait[ait_name] = arr
 
         if USE_CUDA:
@@ -88,9 +72,14 @@ def compile_clip(
     depth = 12
 
     ait_mod = ait_CLIPTextTransformer(
-        num_hidden_layers=depth,
-        hidden_size=dim,
-        num_attention_heads=num_heads,
+        embed_dim = dim,
+        text_cfg={
+            'context_length': max_position_embeddings,
+            'vocab_size': vocab_size,
+            'width': hidden_size,
+            'heads': num_heads,
+            'layers': depth,
+        },
         batch_size=batch_size,
         seq_len=seqlen,
         causal=causal,
@@ -108,10 +97,7 @@ def compile_clip(
     input_ids_ait = Tensor(
         [batch_size, seqlen], name="input0", dtype="int64", is_input=True
     )
-    position_ids_ait = Tensor(
-        [batch_size, seqlen], name="input1", dtype="int64", is_input=True
-    )
-    Y = ait_mod(input_ids=input_ids_ait, position_ids=position_ids_ait)
+    Y = ait_mod(text=input_ids_ait)
     mark_output(Y)
 
     target = detect_target(
