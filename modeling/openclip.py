@@ -4,19 +4,11 @@ Adapted from https://github.com/openai/CLIP. Originally MIT License, Copyright (
 """
 from collections import OrderedDict
 from dataclasses import dataclass
-import logging
-import math
 from typing import Tuple, Union, Callable, Optional
-
-import numpy as np
-import torch.nn.functional as F
-from torch.utils.checkpoint import checkpoint
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
-from .timm_model import TimmModel
-from .utils import freeze_batch_norm_2d, to_2tuple
 
 
 class QuickGELUActivation(nn.Module):
