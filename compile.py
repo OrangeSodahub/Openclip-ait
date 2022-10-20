@@ -89,13 +89,12 @@ def compile_clip(
 
     # load pytorch model
     openclip_mod = OpenCLIPModel(name='ViT-B-32::laion400m_e31', device='cuda')
-    # textmodel
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)
 
     input_ids_ait = Tensor(
-        [batch_size, seqlen], name="input0", dtype="int64", is_input=True
+        [batch_size, max_position_embeddings], name="input", dtype="int64", is_input=True
     )
     Y = ait_mod(text=input_ids_ait)
     mark_output(Y)

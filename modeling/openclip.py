@@ -81,17 +81,41 @@ class ResidualAttentionBlock(nn.Module):
         ]))
 
     def attention(self, x: Tensor, attn_mask: Optional[Tensor] = None):
-        return self.attn(x, x, x, need_weights=False, attn_mask=attn_mask)[0]
+        return self.attn(x, x, x)[0]
         # FIXME torchscript issues need resolving for custom attention option to work
         # if self.use_torch_attn:
         #     return self.attn(x, x, x, need_weights=False, attn_mask=attn_mask)[0]
         # else:
         #     return self.attn(x, attn_mask=attn_mask)
 
-    def forward(self, x: Tensor, attn_mask: Optional[Tensor] = None):
-        x = x + self.ln_attn(self.attention(self.ln_1(x), attn_mask=attn_mask))
-        x = x + self.mlp(self.ln_2(x))
-        return x
+    def forward(
+        self,
+        hidden_states: Tensor,
+        attn_mask: Optional[Tensor] = None,
+        output_attentions: Optional[bool] = False,
+    ):
+        """
+        Args:
+            hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
+            attention_mask (`torch.FloatTensor`): attention mask of size
+                `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
+                `(config.encoder_attention_heads,)`.
+            output_attentions (`bool`, *optional*):
+                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
+                returned tensors for more detail.
+        """
+        # TODO: verify
+        # now the shape of hidden_states: seqlen, batch_size, d_model
+        residual = hidden_states
+        hidden_states = self.ln_1(hidden_states)
+        hidden_states += self.ln_attn(hidden_states)
+        hidden_states = self.attn(hidden_states, residual)
+
+        residual = hidden_states
+        hidden_states = self.ln_2(hidden_states)
+        hidden_states = self.mlp(hidden_states)
+
+        return hidden_states
 
 
 # CLIPEncoder
@@ -186,19 +210,24 @@ class CLIPTextTransformer(nn.Module):
         self.text_projection = nn.Parameter(shape=[text_cfg.width, embed_dim], dtype="float16")
         self.logit_scale = nn.Parameter(shape=[], dtype="float16")
 
-    def encode_text(self, text):
-        x = self.token_embedding(text)  # [batch_size, n_ctx, d_model]
+    def encode_text(self, text: Tensor):
+        # CLIPTextEncodings.forward
+        input_shape = ops.size()(text)
+        # [B * S]
+        text = ops.reshape()(text, [-1])
+        x = ops.batch_gather()(self.token_embedding.tensor(), text)  # [batch_size, n_ctx, d_model]
+        x = ops.reshape()(x, [input_shape[0], input_shape[1], -1])
 
-        x = x + self.positional_embedding
-        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = x + self.positional_embedding.tensor()
+        x = ops.permute()(x, (1, 0, 2)) # NLD -> LND
         x = self.transformer(x)
-        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = ops.permute()(x, (1, 0, 2))  # LND -> NLD
         x = self.ln_final(x)
 
         return x
 
     def forward(self, text):
+        # TODO: verify
         text_features = self.encode_text(text)
-        text_features = F.normalize(text_features, dim=-1)
 
-        return text_features, self.logit_scale.exp()
+        return text_features
