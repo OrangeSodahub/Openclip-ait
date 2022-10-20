@@ -218,8 +218,9 @@ class CLIPTextTransformer(nn.Module):
 
         return x
 
-    def forward(self, text):
+    def forward(self, text = None, *args, **kwargs):
         # TODO: verify
+        text = text if text is not None else args
         text_features = self.encode_text(text)
 
         return text_features

@@ -7,7 +7,6 @@ import numpy as np
 from aitemplate.testing import detect_target
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import Tensor
-from diffusers import StableDiffusionPipeline
 from modeling.openclip import CLIPTextTransformer as ait_CLIPTextTransformer
 from modeling.openclip_model import OpenCLIPModel
 

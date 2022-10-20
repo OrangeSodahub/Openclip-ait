@@ -22,7 +22,7 @@ import torch
 from aitemplate.compiler import Model
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
-from diffusers import StableDiffusionPipeline
+from modeling.openclip_model import OpenCLIPModel
 
 from torch import autocast
 # from transformers import CLIPTokenizer
@@ -70,17 +70,15 @@ def benchmark_clip(
         exit(-1)
 
     # run PT clip
-    # pt_mod = pipe.text_encoder
-    # pt_mod = pt_mod.eval()
+    openclip_mod = OpenCLIPModel(name='ViT-B-16::laion400m_e31', device='cuda')
+    pt_mod = openclip_mod._model
+    pt_mod = pt_mod.eval()
 
-    # tokenizer = Tokenizer(version)
-    # text_input = tokenizer(
-    #     ["a photo of an astronaut riding a horse on mars"],
-    #     context_length=seqlen,
-    #     truncate=True,
-    # )
-    # input_ids = text_input["input_ids"].cuda()
+    # TODO: wrong inputs
     text = tokenizer.tokenize(["a diagram"]).cuda()
+    # for test
+    input_ait = torch.ones((1, 1, 77), dtype=torch.int64).long().cuda()
+    input_pt = torch.ones((1, 77), dtype=torch.int64).long().cuda()
 
     # attention_mask = torch.ones((batch_size, seqlen))
     # attention_mask[-1, -mask_seq:] = 0
@@ -91,18 +89,13 @@ def benchmark_clip(
     # print("pt output:", pt_ys[0].shape)
 
     # PT benchmark
-    # if benchmark_pt:
-    #     args = (input_ids, attention_mask, position_ids)
-    #     pt_time = benchmark_torch_function(100, pt_mod, *args)
-    #     print(f"PT batch_size: {batch_size}, {pt_time} ms")
-    #     with open("sd_pt_benchmark.txt", "a") as f:
-    #         f.write(f"clip batch_size: {batch_size}, latency: {pt_time} ms\n")
+    if benchmark_pt:
+        pt_time = benchmark_torch_function(100, pt_mod, input_pt)
+        print(f"PT batch_size: {batch_size}, {pt_time} ms")
+        with open("sd_pt_benchmark.txt", "a") as f:
+            f.write(f"clip batch_size: {batch_size}, latency: {pt_time} ms\n")
 
     # run AIT clip
-    # inputs = {
-    #     "input0": input_ids,
-    #     "input1": position_ids,
-    # }
     ys = []
     num_ouputs = len(exe_module.get_output_name_to_index_map())
     print(f"num_outputs is {num_ouputs}")
@@ -112,7 +105,7 @@ def benchmark_clip(
         ys.append(torch.empty(shape).cuda().half())
     # exe_module.run_with_tensors(inputs, ys)
 
-    # verification
+    # TODO: verification
     # if verify:
     #     eps = 1e-1
     #     pt_np = pt_ys[0].detach().cpu().numpy()
@@ -124,14 +117,12 @@ def benchmark_clip(
     #     )
     #     print("CLIPTextTransformer verification pass")
 
-    # for test
-    input_ids_ait = torch.ones((1, 1, 77), dtype=torch.int).long().cuda()
 
     # AIT benchmark
     # warmup
-    exe_module.benchmark_with_tensors(inputs=input_ids_ait, outputs=ys, count=100, repeat=4)
+    exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
     # benchmark
-    t, _, _ = exe_module.benchmark_with_tensors(inputs=input_ids_ait, outputs=ys, count=100, repeat=4)
+    t, _, _ = exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
     with open("sd_ait_benchmark.txt", "a") as f:
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
 
@@ -139,9 +130,9 @@ def benchmark_clip(
 @click.command()
 @click.option("--batch-size", default=1, help="batch size")
 @click.option("--verify", type=bool, default=False, help="verify correctness")
-@click.option("--benchmark-pt", type=bool, default=False, help="run pt benchmark")
+@click.option("--benchmark-pt", type=bool, default=True, help="run pt benchmark")
 def benchmark(batch_size, verify, benchmark_pt):
-    assert batch_size == 1, "batch size must be 1 for submodule verification"
+    # assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
