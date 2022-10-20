@@ -64,7 +64,7 @@ def benchmark_clip(
     mask_seq = 0
     version = "ViT-B-32::laion400m_e31"
 
-    exe_module = Model("/home/zonlin/Jina/openclip-ait/tmp/CLIPTextModel/test.so")
+    exe_module = Model("/home/zonlin/Jina/openclip-ait/tmp4/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
         exit(-1)
@@ -77,8 +77,8 @@ def benchmark_clip(
     # TODO: wrong inputs
     text = tokenizer.tokenize(["a diagram"]).cuda()
     # for test
-    input_ait = torch.ones((1, 1, 77), dtype=torch.int64).long().cuda()
-    input_pt = torch.ones((1, 77), dtype=torch.int64).long().cuda()
+    input_ait = torch.ones((1, 4, 77), dtype=torch.int64).long().cuda()
+    input_pt = torch.ones((4, 77), dtype=torch.int64).long().cuda()
 
     # attention_mask = torch.ones((batch_size, seqlen))
     # attention_mask[-1, -mask_seq:] = 0
