@@ -4,11 +4,13 @@ Adapted from https://github.com/openai/CLIP. Originally MIT License, Copyright (
 """
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Tuple, Union, Callable, Optional
+from typing import Tuple, Union, Optional
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
+
+from .utils import to_2tuple
 
 
 class QuickGELUActivation(nn.Module):
@@ -152,6 +154,88 @@ class Transformer(nn.Module):
         return x
 
 
+class VisualTransformer(nn.Module):
+    def __init__(
+            self,
+            image_size: int,
+            patch_size: int,
+            width: int,
+            layers: int,
+            heads: int,
+            mlp_ratio: float,
+            output_dim: int,
+            act_layer: QuickGELUActivation,
+    ):
+        super().__init__()
+        self.image_size = to_2tuple(image_size)
+        self.patch_size = to_2tuple(patch_size)
+        self.grid_size = (self.image_size[0] // self.patch_size[0], self.image_size[1] // self.patch_size[1])
+        self.output_dim = output_dim
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=width, kernel_size=patch_size, stride=patch_size) # bias = Flase
+
+        self.class_embedding = nn.Parameter(shape=[width], dtype="float16")
+        self.positional_embedding = nn.Parameter(shape=[self.grid_size[0] * self.grid_size[1] + 1, width], dtype="float16")
+        self.ln_pre = nn.LayerNorm(width)
+
+        self.transformer = Transformer(
+            width=width,
+            layers=layers,
+            heads=heads,
+            mlp_ratio=mlp_ratio,
+            act_layer=act_layer
+        )
+
+        self.ln_post = nn.LayerNorm(width)
+        self.proj = nn.Parameter(shape=[width, output_dim], dtype="float16")
+
+    def forward(self, x: Tensor):
+        x = self.conv1(x)  # shape = [*, width, grid, grid] (pt) / [*, grid, grid, width]
+        x = ops.reshape()(x, [x.shape()[0].value(), -1, x.shape()[3].value()])  # shape = [*, width, grid ** 2] (pt) / [*, grid ** 2, width]
+        # shape = [*, grid ** 2, width]
+
+        zeros = [[[
+            0 for _ in range(x.shape()[-1].value())
+        ]] for _ in range(x.shape()[0].value())]
+        zeros = Tensor([x.shape()[0].value(), 1, x.shape()[-1].value()], dtype="float16", value=zeros)
+
+        x = ops.concatenate()([self.class_embedding.tensor() + zeros, x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+        x = x + self.positional_embedding.tensor()
+        x = self.ln_pre(x)
+
+        x = ops.permute()(x, (1, 0, 2))  # NLD -> LND
+        x = self.transformer(x)
+        x = ops.permute()(x, (1, 0, 2))  # LND -> NLD
+
+        x = ops.dynamic_slice()(
+            x=x,
+            start_indices=[0, 0, 0],
+            end_indices=[
+                x.shape()[0].value(),
+                1,
+                x.shape()[2].value(),
+            ]
+        )
+
+        if self.proj is not None:
+            x = ops.bmm_rrr()(x, self.proj.tensor())
+
+        return x
+
+
+@dataclass
+class CLIPVisionCfg:
+    layers: Union[Tuple[int, int, int, int], int] = 12
+    width: int = 768
+    head_width: int = 64
+    mlp_ratio: float = 4.0
+    patch_size: int = 16
+    image_size: Union[Tuple[int, int], int] = 224
+    timm_model_name: str = None  # a valid model name overrides layers, width, patch_size
+    timm_model_pretrained: bool = False  # use (imagenet) pretrained weights for named model
+    timm_pool: str = 'avg'  # feature pooling for timm model ('abs_attn', 'rot_attn', 'avg', '')
+    timm_proj: str = 'linear'  # linear projection for timm model output ('linear', 'mlp', '')
+
+
 @dataclass
 class CLIPTextCfg:
     context_length: int = 77        # CLIPTextEmbeddings.max_position_embeddings
@@ -161,11 +245,12 @@ class CLIPTextCfg:
     layers: int = 12                # num_hidden_layers
 
 
-class CLIPTextTransformer(nn.Module):
+class CLIP(nn.Module):
     def __init__(
             self,
             embed_dim: int,
             text_cfg: CLIPTextCfg,
+            vision_cfg: CLIPVisionCfg,
             batch_size: int = 1,
             seq_len: int = 64,
             causal = False,
@@ -174,14 +259,28 @@ class CLIPTextTransformer(nn.Module):
         super().__init__()
         if isinstance(text_cfg, dict):
             text_cfg = CLIPTextCfg(**text_cfg)
+        if isinstance(vision_cfg, dict):
+            vision_cfg = CLIPVisionCfg(**vision_cfg)
 
         self.context_length = text_cfg.context_length
 
-        # OpenAI models are pretrained w/ QuickGELU but native nn.GELU is both faster and more
-        # memory efficient in recent PyTorch releases (>= 1.10).
-        # NOTE: timm models always use native GELU regardless of quick_gelu flag.
+        # Always using QuickGELUActivation()
         act_layer = QuickGELUActivation()
 
+        # Vision Transformer
+        vision_heads = vision_cfg.width // vision_cfg.head_width
+        self.visual = VisualTransformer(
+            image_size=vision_cfg.image_size,
+            patch_size=vision_cfg.patch_size,
+            width=vision_cfg.width,
+            layers=vision_cfg.layers,
+            heads=vision_heads,
+            mlp_ratio=vision_cfg.mlp_ratio,
+            output_dim=embed_dim,
+            act_layer=act_layer,
+        )
+
+        # General Transformer
         # self.encoder = CLIPEncoder(...)
         self.transformer = Transformer(
             width=text_cfg.width,
@@ -216,11 +315,27 @@ class CLIPTextTransformer(nn.Module):
         x = ops.permute()(x, (1, 0, 2))  # LND -> NLD
         x = self.ln_final(x)
 
+        # x.shape = [batch_size, n_ctx, transformer.width]
+        # take features from the eot embedding (eot_token is the highest number in each sequence)
+        a = Tensor(shape=[1, x.shape()[0].value()], value=[i for i in range(x.shape()[0].value())])
+
+        # TODO: better way to index
+        # index = ops.argmax(dim=-1)(x)
+        # x = ops.bmm_rrr()(x[a, ops.argmax(dim=-1)(x)], self.text_projection)
+        
         return x
 
-    def forward(self, text = None, *args, **kwargs):
-        # TODO: verify
-        text = text if text is not None else args
-        text_features = self.encode_text(text)
+    def encode_image(self, image):
+        return self.visual(image)
 
-        return text_features
+    def forward(self, text = None, image = None, *args, **kwargs):
+        # TODO: verify
+        if text is not None and image is None:
+            return self.encode_text(text)
+        elif image is not None and text is None:
+            return self.encode_image(image)
+        
+        text_features = self.encode_text(text)
+        image_features = self.encode_image(image)
+
+        return text_features, image_features

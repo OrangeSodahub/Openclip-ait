@@ -13,12 +13,13 @@
 #  limitations under the License.
 #
 
-import logging
-
-import click
-
-import numpy as np
 import torch
+import logging
+import click
+import numpy as np
+from PIL import Image
+
+from open_clip.transform import image_transform
 from aitemplate.compiler import Model
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
@@ -64,7 +65,7 @@ def benchmark_clip(
     mask_seq = 0
     version = "ViT-B-32::laion400m_e31"
 
-    exe_module = Model("/home/zonlin/Jina/openclip-ait/tmp4/CLIPTextModel/test.so")
+    exe_module = Model("/home/zonlin/Jina/openclip-ait/tmp1/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
         exit(-1)
@@ -76,9 +77,11 @@ def benchmark_clip(
 
     # TODO: wrong inputs
     text = tokenizer.tokenize(["a diagram"]).cuda()
+    preprocess = image_transform(224, is_train=False)
+    image = preprocess(Image.open("/assets/pic.jpg")).unsqueeze(0)
     # for test
-    input_ait = torch.ones((1, 4, 77), dtype=torch.int64).long().cuda()
-    input_pt = torch.ones((4, 77), dtype=torch.int64).long().cuda()
+    input_ait = torch.ones((1, 1, 77), dtype=torch.int64).long().cuda()
+    input_pt = torch.ones((1, 77), dtype=torch.int64).long().cuda()
 
     # attention_mask = torch.ones((batch_size, seqlen))
     # attention_mask[-1, -mask_seq:] = 0
@@ -122,7 +125,10 @@ def benchmark_clip(
     # warmup
     exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
     # benchmark
-    t, _, _ = exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
+    t, a, b = exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
+    for x in b['output_0'][0]:
+        print(x)
+        print(x.shape)
     with open("sd_ait_benchmark.txt", "a") as f:
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
 
