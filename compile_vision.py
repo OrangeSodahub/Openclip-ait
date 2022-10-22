@@ -25,7 +25,7 @@ def mark_output(y):
         print("AIT output_{} shape: {}".format(i, y_shape))
 
 
-def map_clip_params(pt_mod):
+def map_clip_params(pt_mod, width, patch_size):
 
     params_ait = {}
     pt_params = {}
@@ -45,6 +45,11 @@ def map_clip_params(pt_mod):
         elif name.endswith("in_proj_bias"):
             ait_name = ait_name.replace("in_proj", "qkv")
 
+        if name.startswith("visual.conv1"):
+            conv_w = torch.zeros((width, 4, patch_size, patch_size))
+            conv_w[:, :3, :, :] = arr
+            arr = conv_w
+
         if arr.dtype == torch.float32:
             arr.data = arr.data.half()
         print(f"name:{ait_name}, shape:{arr.shape}")
@@ -53,7 +58,7 @@ def map_clip_params(pt_mod):
         # TODO: prefix changed
         # if USE_CUDA:
         #     for i in range(depth):
-        #         prefix = "transformer_resblocks_%d_attn_cu_length" % (i)
+        #         prefix = "visual_transformer_resblocks_%d_attn_cu_length" % (i)
         #         cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
         #         params_ait[prefix] = torch.from_numpy(cu_len).cuda()
 
@@ -68,10 +73,6 @@ def compile_clip(
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
 ):
-    mask_seq = 0
-    causal = True
-    depth = 12
-
     ait_mod = ait_CLIP(
         embed_dim = embed_dim,
         vision_cfg = vision_cfg,
@@ -82,7 +83,7 @@ def compile_clip(
     openclip_mod = OpenCLIPModel(name='ViT-L-14::laion400m_e31', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
-    params_ait = map_clip_params(pt_mod)
+    params_ait = map_clip_params(pt_mod, vision_cfg['width'], vision_cfg['patch_size'])
     print(f"num of params: {len(params_ait)}")
 
     # image input

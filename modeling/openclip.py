@@ -171,7 +171,9 @@ class VisualTransformer(nn.Module):
         self.patch_size = to_2tuple(patch_size)
         self.grid_size = (self.image_size[0] // self.patch_size[0], self.image_size[1] // self.patch_size[1])
         self.output_dim = output_dim
-        self.conv1 = nn.Conv2d(
+        # TODO: Expand channel from 3 to 4
+        # Alse Expand conv1_weight to [width, 4, patch_size, patch_size])
+        self.conv1 = nn.Conv2dBiasFewChannels(
             in_channels=3,
             out_channels=width,
             kernel_size=patch_size,
