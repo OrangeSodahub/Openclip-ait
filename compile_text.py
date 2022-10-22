@@ -37,6 +37,14 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
 
         if name.startswith("visual"):
             continue
+        if name.endswith("out_proj.weight"):
+            ait_name = ait_name.replace("out_proj", "proj")
+        elif name.endswith("out_proj.bias"):
+            ait_name = ait_name.replace("out_proj", "proj")
+        elif name.endswith("in_proj_weight"):
+            ait_name = ait_name.replace("in_proj", "qkv")
+        elif name.endswith("in_proj_bias"):
+            ait_name = ait_name.replace("in_proj", "qkv")
 
         if arr.dtype == torch.float32:
             arr.data = arr.data.half()
@@ -54,18 +62,22 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
     return params_ait
 
 
-# ATTENTION: the cfgs of model
+"""
+    - remove `seqlen = 64`, openclip uses context_length rather than `seqlen` and `max_position_embeddings`
+    - causal`: used in ops.bmm_softmax_bmm_permute
+    - TODO: mask_seq
+"""
 def compile_clip(
     embed_dim,
     text_cfg,
     batch_size=1,
-    seqlen=64,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
 ):
     mask_seq = 0
     causal = True
-    depth = 12
+    depth = text_cfg['layers']              # 12
+    seqlen = text_cfg['context_length']     # 77
 
     ait_mod = ait_CLIP(
         embed_dim = embed_dim,
@@ -99,7 +111,7 @@ def compile_clip(
 
 
 @click.command()
-@click.option("--batch-size", default=1, help="batch size")
+@click.option("--batch-size", default=2, help="batch size")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):

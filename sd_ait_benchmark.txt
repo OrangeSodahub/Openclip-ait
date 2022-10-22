@@ -1,3 +1,0 @@
-clip batch_size: 1, latency: 0.6386170536279678 ms
-clip batch_size: 2, latency: 0.7083567082881927 ms
-clip batch_size: 4, latency: 0.7927577644586563 ms

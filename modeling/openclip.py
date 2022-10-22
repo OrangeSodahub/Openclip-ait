@@ -140,8 +140,6 @@ class Transformer(nn.Module):
                 seq_len=seq_len,
                 causal=causal,
                 mask_seq=mask_seq,
-                scale_attn=True,
-                scale_fc=True
             )
             for _ in range(layers)
         ])
