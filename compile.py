@@ -133,7 +133,7 @@ def compile(batch_size, img2img=False, use_fp16_acc=True, convert_conv_to_gemm=T
     },
     vision_cfg = {
         'layers': 24,
-        'width': 1024,
+        'width': 1024, # 1024?
         'head_width': 64,
         'mlp_ratio': 4.,
         'patch_size': 14,

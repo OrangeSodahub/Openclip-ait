@@ -107,7 +107,7 @@ class ResidualAttentionBlock(nn.Module):
 
         residual = hidden_states
         hidden_states = self.ln_2(hidden_states)
-        hidden_states = self.mlp(hidden_states)
+        hidden_states = self.mlp(hidden_states) # TODO
 
         return hidden_states
 
@@ -140,6 +140,8 @@ class Transformer(nn.Module):
                 seq_len=seq_len,
                 causal=causal,
                 mask_seq=mask_seq,
+                scale_attn=True,
+                scale_fc=True
             )
             for _ in range(layers)
         ])
@@ -171,10 +173,21 @@ class VisualTransformer(nn.Module):
         self.patch_size = to_2tuple(patch_size)
         self.grid_size = (self.image_size[0] // self.patch_size[0], self.image_size[1] // self.patch_size[1])
         self.output_dim = output_dim
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=width, kernel_size=patch_size, stride=patch_size) # bias = Flase
+        self.conv1 = nn.Conv2d(
+            in_channels=3,
+            out_channels=width,
+            kernel_size=patch_size,
+            stride=patch_size
+        ) # bias = Flase => Conv2d == Conv2dBias == Conv2dBiasFewChannels
 
-        self.class_embedding = nn.Parameter(shape=[width], dtype="float16")
-        self.positional_embedding = nn.Parameter(shape=[self.grid_size[0] * self.grid_size[1] + 1, width], dtype="float16")
+        self.class_embedding = nn.Parameter(
+            shape=[1, 1, width],
+            dtype="float16"
+        )
+        self.positional_embedding = nn.Parameter(
+            shape=[self.grid_size[0] * self.grid_size[1] + 1, width],
+            dtype="float16"
+        )
         self.ln_pre = nn.LayerNorm(width)
 
         self.transformer = Transformer(
@@ -189,16 +202,22 @@ class VisualTransformer(nn.Module):
         self.proj = nn.Parameter(shape=[width, output_dim], dtype="float16")
 
     def forward(self, x: Tensor):
-        x = self.conv1(x)  # shape = [*, width, grid, grid] (pt) / [*, grid, grid, width]
-        x = ops.reshape()(x, [x.shape()[0].value(), -1, x.shape()[3].value()])  # shape = [*, width, grid ** 2] (pt) / [*, grid ** 2, width]
-        # shape = [*, grid ** 2, width]
+        # Patch embedding: shape = [*, width, grid, grid] (pt) / [*, grid, grid, width]
+        x = self.conv1(x)
+        # Flatten to tokens: shape = [*, width, grid ** 2] (pt) / [*, grid ** 2, width]
+        x = ops.reshape()(x, [x.shape()[0].value(), -1, x.shape()[3].value()]) 
 
-        zeros = [[[
+        # cls_token_mask
+        zeros = [
+            [[
             0 for _ in range(x.shape()[-1].value())
-        ]] for _ in range(x.shape()[0].value())]
+        ]] for _ in range(x.shape()[0].value())
+        ]
         zeros = Tensor([x.shape()[0].value(), 1, x.shape()[-1].value()], dtype="float16", value=zeros)
 
-        x = ops.concatenate()([self.class_embedding.tensor() + zeros, x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+        # Concat cls token: shape = [*, grid ** 2 + 1, width]
+        x = ops.concatenate()([self.class_embedding.tensor() + zeros, x], dim=1)
+        # Concat pos token: shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.tensor()
         x = self.ln_pre(x)
 
@@ -243,6 +262,110 @@ class CLIPTextCfg:
     width: int = 512                # hidden_size
     heads: int = 8                  # num_attention_heads
     layers: int = 12                # num_hidden_layers
+
+
+class CLIPVisionTransformer(nn.Module):
+    def __init__(
+            self,
+            embed_dim: int,
+            vision_cfg: CLIPVisionCfg,
+    ):
+        super().__init__()
+        if isinstance(vision_cfg, dict):
+            vision_cfg = CLIPVisionCfg(**vision_cfg)
+
+        # Always using QuickGELUActivation()
+        act_layer = QuickGELUActivation()
+
+        # Vision Transformer
+        # layers name: visual....
+        vision_heads = vision_cfg.width // vision_cfg.head_width
+        self.visual = VisualTransformer(
+            image_size=vision_cfg.image_size,
+            patch_size=vision_cfg.patch_size,
+            width=vision_cfg.width,
+            layers=vision_cfg.layers,
+            heads=vision_heads,
+            mlp_ratio=vision_cfg.mlp_ratio,
+            output_dim=embed_dim,
+            act_layer=act_layer,
+        )
+
+    def encode_image(self, image):
+        return self.visual(image)
+
+    def forward(self, image = None, *args, **kwargs):
+        image = image or args
+        return self.encode_image(image)
+
+
+class CLIPTextTransformer(nn.Module):
+    def __init__(
+            self,
+            embed_dim: int,
+            text_cfg: CLIPTextCfg,
+            batch_size: int = 1,
+            seq_len: int = 64,
+            causal = False,
+            mask_seq = 0,
+    ):
+        super().__init__()
+        if isinstance(text_cfg, dict):
+            text_cfg = CLIPTextCfg(**text_cfg)
+
+        self.context_length = text_cfg.context_length
+
+        # Always using QuickGELUActivation()
+        act_layer = QuickGELUActivation()
+
+        # General Transformer
+        # self.encoder = CLIPEncoder(...)
+        self.transformer = Transformer(
+            width=text_cfg.width,
+            layers=text_cfg.layers,
+            heads=text_cfg.heads,
+            act_layer=act_layer,
+            batch_size=batch_size,
+            seq_len=seq_len,
+            causal=causal,
+            mask_seq=mask_seq,
+        )
+
+        self.vocab_size = text_cfg.vocab_size
+        self.token_embedding = nn.Embedding(shape=[text_cfg.vocab_size, text_cfg.width], dtype="float16")
+        self.positional_embedding = nn.Parameter(shape=[self.context_length, text_cfg.width], dtype="float16") # no initialization
+        self.ln_final = nn.LayerNorm(text_cfg.width, dtype="float16")
+
+        self.text_projection = nn.Parameter(shape=[text_cfg.width, embed_dim], dtype="float16")
+        self.logit_scale = nn.Parameter(shape=[], dtype="float16")
+
+    def encode_text(self, text: Tensor):
+        # CLIPTextEncodings.forward
+        input_shape = ops.size()(text)
+        # [B * S]
+        text = ops.reshape()(text, [-1])
+        x = ops.batch_gather()(self.token_embedding.tensor(), text)  # [batch_size, n_ctx, d_model]
+        x = ops.reshape()(x, [input_shape[0], input_shape[1], -1])
+
+        x = x + self.positional_embedding.tensor()
+        x = ops.permute()(x, (1, 0, 2)) # NLD -> LND
+        x = self.transformer(x)
+        x = ops.permute()(x, (1, 0, 2))  # LND -> NLD
+        x = self.ln_final(x)
+
+        # x.shape = [batch_size, n_ctx, transformer.width]
+        # take features from the eot embedding (eot_token is the highest number in each sequence)
+        a = Tensor(shape=[1, x.shape()[0].value()], value=[i for i in range(x.shape()[0].value())])
+
+        # TODO: better way to index
+        # index = ops.argmax(dim=-1)(x)
+        # x = ops.bmm_rrr()(x[a, ops.argmax(dim=-1)(x)], self.text_projection)
+        
+        return x
+
+    def forward(self, text = None, *args, **kwargs):
+        text = text or args
+        return self.encode_text(text)
 
 
 class CLIP(nn.Module):
