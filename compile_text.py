@@ -90,7 +90,7 @@ def compile_clip(
     ait_mod.name_parameter_tensor()
 
     # load pytorch model
-    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion400m_e31', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)

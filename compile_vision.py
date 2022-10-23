@@ -87,7 +87,7 @@ def compile_clip(
     seqlen = (vision_cfg["image_size"] // vision_cfg["patch_size"]) ** 2
 
     # load pytorch model
-    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion400m_e31', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(
@@ -118,7 +118,7 @@ def compile_clip(
 
 
 @click.command()
-@click.option("--batch-size", default=2, help="batch size")
+@click.option("--batch-size", default=1, help="batch size")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):

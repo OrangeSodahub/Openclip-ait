@@ -99,6 +99,7 @@ class ResidualAttentionBlock(nn.Module):
                 returned tensors for more detail.
         """
         # TODO: verify
+        # TODO: When there is no unknown index, we expect dim products to be equal, got current shape numel=1085568 != new shape prod=1081344
         # now the shape of hidden_states: seqlen, batch_size, d_model
         residual = hidden_states
         hidden_states = self.ln_1(hidden_states)
@@ -217,6 +218,7 @@ class VisualTransformer(nn.Module):
         # ]
         # zeros = Tensor([x.shape()[0].value(), 1, x.shape()[-1].value()], dtype="float16", value=zeros)
 
+        # TODO: tensors expected to have the same dimensions except concat_dim!
         # Concat cls token: shape = [*, grid ** 2 + 1, width]
         x = ops.concatenate()([self.class_embedding.tensor(), x], dim=1)
         # Concat pos token: shape = [*, grid ** 2 + 1, width]

@@ -66,7 +66,7 @@ def benchmark_clip(
         exit(-1)
 
     # run PT clip
-    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion400m_e31', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
 
@@ -137,7 +137,7 @@ def benchmark(batch_size, verify, benchmark_pt):
     torch.manual_seed(4896)
 
     # CLIP
-    benchmark_clip(batch_size=batch_size, mode="vision", benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_clip(batch_size=batch_size, mode="text", benchmark_pt=benchmark_pt, verify=verify)
 
 
 if __name__ == "__main__":
