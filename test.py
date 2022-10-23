@@ -7,7 +7,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def test_inference():
-    model, _, preprocess = open_clip.create_model_and_transforms('ViT-B-32-quickgelu', pretrained='laion400m_e32')
+    model, _, preprocess = open_clip.create_model_and_transforms('ViT-L-14', pretrained='laion400m_e31')
 
     image = preprocess(Image.open("/home/zonlin/Jina/openclip-ait/assets/pic.jpg")).unsqueeze(0)
     text = tokenizer.tokenize(["a diagram", "a dog", "a cat"])

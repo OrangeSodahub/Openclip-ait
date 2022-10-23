@@ -44,23 +44,19 @@ def map_clip_params(pt_mod, width, patch_size):
             ait_name = ait_name.replace("in_proj", "qkv")
         elif name.endswith("in_proj_bias"):
             ait_name = ait_name.replace("in_proj", "qkv")
-
-        if name.startswith("visual.conv1"):
-            conv_w = torch.zeros((width, 4, patch_size, patch_size))
-            conv_w[:, :3, :, :] = arr
-            arr = conv_w
-
         if arr.dtype == torch.float32:
             arr.data = arr.data.half()
+
+        if name.startswith("visual.conv1"):
+            conv_w = torch.zeros((width, 4, patch_size, patch_size), dtype=torch.float16)
+            conv_w[:, :3, :, :] = arr
+            arr = conv_w.permute((0, 2, 3, 1))                                               # [N, C, H, W] -> [N, H, W, C]
+            params_ait["visual_conv1_weight"] = arr
+            params_ait["visual_conv1_bias"] = torch.zeros((width), dtype=torch.float16)      # Set bias to zero
+            continue
+
         print(f"name:{ait_name}, shape:{arr.shape}")
         params_ait[ait_name] = arr
-
-        # TODO: prefix changed
-        # if USE_CUDA:
-        #     for i in range(depth):
-        #         prefix = "visual_transformer_resblocks_%d_attn_cu_length" % (i)
-        #         cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
-        #         params_ait[prefix] = torch.from_numpy(cu_len).cuda()
 
     return params_ait
 
@@ -98,6 +94,7 @@ def compile_clip(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
+    # TODO: Error: Constant tensor_0 was not set! Set the value with set_constant.
     compile_model(Y, target, "./tmp", "CLIPTextModel", constants=params_ait)
 
 

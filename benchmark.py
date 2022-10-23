@@ -53,19 +53,14 @@ def mark_output(y):
 
 def benchmark_clip(
     batch_size=1,
-    seqlen=64,
-    dim=512,
-    num_heads=8,
-    hidden_size=512,
-    vocab_size=49408,
-    max_position_embeddings=77,
+    mode="text",
     benchmark_pt=False,
     verify=False,
 ):
     mask_seq = 0
     version = "ViT-B-32::laion400m_e31"
 
-    exe_module = Model("/home/zonlin/Jina/openclip-ait/tmp2/CLIPTextModel/test.so")
+    exe_module = Model("/home/zonlin/Jina/openclip-ait/tmp/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
         exit(-1)
@@ -79,16 +74,17 @@ def benchmark_clip(
     text = tokenizer.tokenize(["a diagram"]).cuda()
     preprocess = image_transform(224, is_train=False)
     # for test
-    input_ait = torch.ones((1, 2, 77), dtype=torch.int64).long().cuda()
-    input_pt = torch.ones((2, 77), dtype=torch.int64).long().cuda()
+    if mode == "text":
+        input_ait = torch.ones((1, 2, 77), dtype=torch.int64).long().cuda()
+        input_pt = torch.ones((2, 77), dtype=torch.int64).long().cuda()
+    elif mode == "vision":
+        input_ait = torch.randint(0, 10, (1, 1, 224, 224, 3), dtype=torch.int64).half().cuda()
+        input_pt = torch.randint(0, 10, (1, 3, 224, 224), dtype=torch.int64).half().cuda()
 
+    # TODO: attention mask
     # attention_mask = torch.ones((batch_size, seqlen))
     # attention_mask[-1, -mask_seq:] = 0
     # attention_mask = None
-
-    # position_ids = torch.arange(seqlen).expand((batch_size, -1)).cuda()
-    # pt_ys = pt_mod(input_ids, attention_mask, position_ids)
-    # print("pt output:", pt_ys[0].shape)
 
     # PT benchmark
     if benchmark_pt:
@@ -141,7 +137,7 @@ def benchmark(batch_size, verify, benchmark_pt):
     torch.manual_seed(4896)
 
     # CLIP
-    benchmark_clip(batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_clip(batch_size=batch_size, mode="vision", benchmark_pt=benchmark_pt, verify=verify)
 
 
 if __name__ == "__main__":
