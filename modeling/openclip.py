@@ -27,6 +27,15 @@ class QuickGELUActivation(nn.Module):
 
 # CLIPEncoderLayer
 class ResidualAttentionBlock(nn.Module):
+    """
+    :param d_model: hidden_size, comes from text_cfg.width
+    :param n_head: num_attention_heads, comes from text_cfg.heads
+    :param act_layer: use QuickGELUActivation
+    :mlp: c_fc(fc1) of shape (in_features, hidden_features)
+          activation_fn
+          c_proj(fc2) of shape (hidden_features, out_features)
+    """
+
     def __init__(
             self,
             d_model: int,
@@ -74,51 +83,51 @@ class ResidualAttentionBlock(nn.Module):
             ("c_proj", nn.Linear(mlp_width, d_model, dtype="float16"))
         ]))
 
-    def attention(self, x: Tensor, attn_mask: Optional[Tensor] = None):
-        return self.attn(x, x, x)[0]
-        # FIXME torchscript issues need resolving for custom attention option to work
-        # if self.use_torch_attn:
-        #     return self.attn(x, x, x, need_weights=False, attn_mask=attn_mask)[0]
-        # else:
-        #     return self.attn(x, attn_mask=attn_mask)
-
     def forward(
         self,
-        hidden_states: Tensor,
+        x: Tensor,
         attn_mask: Optional[Tensor] = None,
-        output_attentions: Optional[bool] = False,
     ):
         """
-        Args:
-            hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
-            attention_mask (`torch.FloatTensor`): attention mask of size
-                `(batch, 1, tgt_len, src_len)` where padding elements are indicated by very large negative values.
-                `(config.encoder_attention_heads,)`.
-            output_attentions (`bool`, *optional*):
-                Whether or not to return the attentions tensors of all attention layers. See `attentions` under
-                returned tensors for more detail.
+        :param x: of shape `(batch_size, context_length, d_model)`
+        :param attn_mask:
+        attn:
+            input: of shape `(batch_size, context_length, d_model)`
+            output: of shape `(batch_size, context_length, d_model)`
+        
+        In pytorch, nn.MultiheadAttention does not operate the `add`
+        where the forword code like:
+            ```
+            x = self.attention(self.ln_1(x))
+            x = x + self.ln_attn(x, attn_mask=attn_mask))
+            x = x + self.mlp(self.ln_2(x))
+            ```
+        In AIT, nn.MultiheadAttention accept `*args` which support two arguments,
+        if the seconde arg `residual` specified, then it will do `add` operation.
+        MLP layer is not the same as the Attn layer. In AIT, nn.Linear accept `specialization="add"` in `fc2`.
         """
-        # TODO: verify
         # TODO: When there is no unknown index, we expect dim products to be equal, got current shape numel=1085568 != new shape prod=1081344
-        # now the shape of hidden_states: seqlen, batch_size, d_model
-        residual = hidden_states
-        hidden_states = self.ln_1(hidden_states)
-        hidden_states += self.ln_attn(hidden_states)
-        hidden_states = self.attn(hidden_states, residual)
+        residual = x
+        x = self.attn(self.ln_1(x), residual)
 
-        residual = hidden_states
-        hidden_states = self.ln_2(hidden_states)
-        hidden_states = self.mlp(hidden_states) # TODO
+        x = self.ln_2(x)
+        x = x + self.mlp(x)
 
-        return hidden_states
+        return x
 
 
 # CLIPEncoder
 class Transformer(nn.Module):
+    """
+    :param width: hidden_size, comes from text_cfg.width
+    :param layers: num_hidden_layers, comes from text_cfg.layers
+    :param heads: num_attention_heads, comes from text_cfg.heads
+    """
+    
     def __init__(self,
-        width: int,                                 # hidden_size
-        layers: int,                                # num_hidden_layers
-        heads: int,                                 # num_attention_heads
+        width: int,
+        layers: int,
+        heads: int,
         act_layer: QuickGELUActivation,
         mlp_ratio: float = 4.0,
         batch_size: int = 1,
@@ -146,12 +155,14 @@ class Transformer(nn.Module):
         ])
 
     def forward(self, x: Tensor, attn_mask: Optional[Tensor] = None):
+        """
+        :param x: shape: of shape (context_length, batch_size, d_model/width)
+        :param attn_mask: of shape (context_length, batch_size)
+               Mask to avoid performing attention on padding token indices. Mask values selected in `[0, 1]`
+        """
         for r in self.resblocks:
-            # TODO: torch: checkpoint
-            # if self.grad_checkpointing and not torch.jit.is_scripting():
-            #     x = checkpoint(r, x, attn_mask)
-            # else:
-                x = r(x, attn_mask=attn_mask)
+            # TODO: grad_checkpointing
+            x = r(x, attn_mask=attn_mask)
         return x
 
 
@@ -344,22 +355,26 @@ class CLIPTextTransformer(nn.Module):
         self.logit_scale = nn.Parameter(shape=[], dtype="float16")
 
     def encode_text(self, text: Tensor):
+        """
+        :param text: of shape (batch_size, context_length)
+        In Pytorch, when `batch_first` is False the nn.MultiheadAttention gets input of shape :math:`(L, N, E_q)` -> `(context_length, batch_size, d_model)`
+        In AIT, nn.MultiheadAttention gets input of shape `(batch_size, context_length, d_model)`
+        See aitemplate.fronted.nn.attention.MultiheadAttention.forward
+        """
         # CLIPTextEncodings.forward
         input_shape = ops.size()(text)
-        # [B * S]
-        text = ops.reshape()(text, [-1])
+        
+        text = ops.reshape()(text, [-1]) # [batch_size * context_length]
         x = ops.batch_gather()(self.token_embedding.tensor(), text)  # [batch_size, n_ctx, d_model]
         x = ops.reshape()(x, [input_shape[0], input_shape[1], -1])
 
         x = x + self.positional_embedding.tensor()
-        x = ops.permute()(x, (1, 0, 2)) # NLD -> LND
         x = self.transformer(x)
-        x = ops.permute()(x, (1, 0, 2))  # LND -> NLD
         x = self.ln_final(x)
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        a = Tensor(shape=[1, x.shape()[0].value()], value=[i for i in range(x.shape()[0].value())])
+        # a = Tensor(shape=[1, x.shape()[0].value()], value=[i for i in range(x.shape()[0].value())])
 
         # TODO: better way to index
         # index = ops.argmax(dim=-1)(x)
@@ -372,6 +387,7 @@ class CLIPTextTransformer(nn.Module):
         return self.encode_text(text)
 
 
+# TODO: Not available now
 class CLIP(nn.Module):
     def __init__(
             self,
