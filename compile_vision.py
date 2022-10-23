@@ -53,6 +53,7 @@ def map_clip_params(pt_mod, width, patch_size, depth, seqlen, batch_size):
             arr = conv_w.permute((0, 2, 3, 1))                                               # [N, C, H, W] -> [N, H, W, C]
             params_ait["visual_conv1_weight"] = arr
             params_ait["visual_conv1_bias"] = torch.zeros((width), dtype=torch.float16)      # Set bias to zero
+            print(f"name:visual_conv1_weight, shape:{arr.shape}")
             continue
 
         print(f"name:{ait_name}, shape:{arr.shape}")
@@ -75,6 +76,7 @@ def compile_clip(
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
 ):
+    # TODO: support batch_size > 1
     ait_mod = ait_CLIP(
         embed_dim = embed_dim,
         vision_cfg = vision_cfg,
@@ -110,13 +112,13 @@ def compile_clip(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    # TODO: Error: Constant tensor_0 was not set! Set the value with set_constant.
+    
     compile_model(Y, target, "./tmp", "CLIPTextModel", constants=params_ait)
 
 
 
 @click.command()
-@click.option("--batch-size", default=1, help="batch size")
+@click.option("--batch-size", default=2, help="batch size")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):

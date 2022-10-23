@@ -171,8 +171,8 @@ class VisualTransformer(nn.Module):
         self.patch_size = to_2tuple(patch_size)
         self.grid_size = (self.image_size[0] // self.patch_size[0], self.image_size[1] // self.patch_size[1])
         self.output_dim = output_dim
-        # TODO: Expand channel from 3 to 4
-        # Alse Expand conv1_weight to [width, 4, patch_size, patch_size])
+        # Expand channel from 3 to 4
+        # Also Expand conv1_weight to [width, 4, patch_size, patch_size])
         self.conv1 = nn.Conv2dBiasFewChannels(
             in_channels=3,
             out_channels=width,
@@ -180,6 +180,7 @@ class VisualTransformer(nn.Module):
             stride=patch_size
         ) # bias = Flase => Conv2d == Conv2dBias == Conv2dBiasFewChannels
 
+        # TODO: support batch_size > 1
         self.class_embedding = nn.Parameter(
             shape=[1, 1, width],
             dtype="float16"
@@ -207,6 +208,7 @@ class VisualTransformer(nn.Module):
         # Flatten to tokens: shape = [*, width, grid ** 2] (pt) / [*, grid ** 2, width]
         x = ops.reshape()(x, [x.shape()[0].value(), -1, x.shape()[3].value()]) 
 
+        # TODO: Error: Constant tensor_0 was not set! Set the value with set_constant.
         # cls_token_mask
         # zeros = [
         #     [[
