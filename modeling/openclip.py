@@ -208,15 +208,15 @@ class VisualTransformer(nn.Module):
         x = ops.reshape()(x, [x.shape()[0].value(), -1, x.shape()[3].value()]) 
 
         # cls_token_mask
-        zeros = [
-            [[
-            0 for _ in range(x.shape()[-1].value())
-        ]] for _ in range(x.shape()[0].value())
-        ]
-        zeros = Tensor([x.shape()[0].value(), 1, x.shape()[-1].value()], dtype="float16", value=zeros)
+        # zeros = [
+        #     [[
+        #     0 for _ in range(x.shape()[-1].value())
+        # ]] for _ in range(x.shape()[0].value())
+        # ]
+        # zeros = Tensor([x.shape()[0].value(), 1, x.shape()[-1].value()], dtype="float16", value=zeros)
 
         # Concat cls token: shape = [*, grid ** 2 + 1, width]
-        x = ops.concatenate()([self.class_embedding.tensor() + zeros, x], dim=1)
+        x = ops.concatenate()([self.class_embedding.tensor(), x], dim=1)
         # Concat pos token: shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.tensor()
         x = self.ln_pre(x)

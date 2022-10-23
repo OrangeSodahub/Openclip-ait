@@ -25,7 +25,7 @@ def mark_output(y):
         print("AIT output_{} shape: {}".format(i, y_shape))
 
 
-def map_clip_params(pt_mod, width, patch_size):
+def map_clip_params(pt_mod, width, patch_size, depth, seqlen, batch_size):
 
     params_ait = {}
     pt_params = {}
@@ -58,6 +58,12 @@ def map_clip_params(pt_mod, width, patch_size):
         print(f"name:{ait_name}, shape:{arr.shape}")
         params_ait[ait_name] = arr
 
+        if USE_CUDA:
+            for i in range(depth):
+                prefix = "visual_transformer_resblocks_%d_attn_cu_length" % (i)
+                cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
+                params_ait[prefix] = torch.from_numpy(cu_len).cuda()
+
     return params_ait
 
 
@@ -75,11 +81,21 @@ def compile_clip(
     )
     ait_mod.name_parameter_tensor()
 
+    # TODO: + (1 if class_token else 0)
+    seqlen = (vision_cfg["image_size"] // vision_cfg["patch_size"]) ** 2
+
     # load pytorch model
     openclip_mod = OpenCLIPModel(name='ViT-L-14::laion400m_e31', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
-    params_ait = map_clip_params(pt_mod, vision_cfg['width'], vision_cfg['patch_size'])
+    params_ait = map_clip_params(
+        pt_mod=pt_mod,
+        width=vision_cfg['width'],
+        patch_size=vision_cfg['patch_size'],
+        depth=vision_cfg['layers'],
+        seqlen=seqlen,
+        batch_size=batch_size,
+    )
     print(f"num of params: {len(params_ait)}")
 
     # image input
@@ -114,7 +130,7 @@ def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):
     # cfgs for model
     vision_cfg = {
         'layers': 24,
-        'width': 1024, # 1024?
+        'width': 1024,
         'head_width': 64,
         'mlp_ratio': 4.,
         'patch_size': 14,
