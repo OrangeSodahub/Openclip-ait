@@ -19,3 +19,9 @@ shape     | model                      | pt (ms)  | ait (ms)
 (16, 77)  |                            |10.0222   |3.4399
 (1, 224, 224, 3)|                      |16.2587   |3.7753
 ------------------------------------------------------------
+
+Known Issues:
+- ViT-g-14 not supported: `head_size` only be [8, 16, 32, 64, 128]
+(see: https://github.com/facebookincubator/AITemplate/issues/53)
+- `batch_size` > 1 not supported in VisionTransformer (see: https://github.com/facebookincubator/AITemplate/blob/44026ba7e7f5376a80cf0f2b333a0f25c0eeda6c/python/aitemplate/backend/cuda/tensor/expand.py#L21 ) (still need to verify.)
+- Index Tensor with Tensor not supported in `encode_text` (see: https://github.com/facebookincubator/AITemplate/issues/49)
