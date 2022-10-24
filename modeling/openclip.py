@@ -68,7 +68,8 @@ class ResidualAttentionBlock(nn.Module):
             num_heads=n_head,
             attn_drop=attention_dropout,
             causal=causal,
-            mask_seq=mask_seq
+            mask_seq=mask_seq,
+            has_residual=True,
         )
         self.ln_attn = nn.LayerNorm(d_model, dtype="float16") if scale_attn else nn.Identity()
 
@@ -107,8 +108,7 @@ class ResidualAttentionBlock(nn.Module):
         MLP layer is not the same as the Attn layer. In AIT, nn.Linear accept `specialization="add"` in `fc2`.
         """
         # TODO: When there is no unknown index, we expect dim products to be equal, got current shape numel=1085568 != new shape prod=1081344
-        residual = x
-        x = self.attn(self.ln_1(x), residual)
+        x = self.attn(self.ln_1(x), x)
 
         x = self.ln_2(x)
         x = x + self.mlp(x)
@@ -169,6 +169,7 @@ class Transformer(nn.Module):
 class VisualTransformer(nn.Module):
     def __init__(
             self,
+            batch_size: int,
             image_size: int,
             patch_size: int,
             width: int,
@@ -202,10 +203,14 @@ class VisualTransformer(nn.Module):
             dtype="float16"
         )
         self.ln_pre = nn.LayerNorm(width)
+        seq_len = self.grid_size[0] * self.grid_size[1] + 1
 
         self.transformer = Transformer(
             width=width,
             layers=layers,
+            batch_size=batch_size,
+            # TODO: verify
+            seq_len=seq_len,
             heads=heads,
             mlp_ratio=mlp_ratio,
             act_layer=act_layer
@@ -230,15 +235,17 @@ class VisualTransformer(nn.Module):
         # zeros = Tensor([x.shape()[0].value(), 1, x.shape()[-1].value()], dtype="float16", value=zeros)
 
         # TODO: tensors expected to have the same dimensions except concat_dim!
+        # expand shape[0] to batch_size
+        class_embedding = ops.expand()(
+            self.class_embedding.tensor(), [x.shape()[0].value(), -1, -1]
+        )
         # Concat cls token: shape = [*, grid ** 2 + 1, width]
-        x = ops.concatenate()([self.class_embedding.tensor(), x], dim=1)
+        x = ops.concatenate()([class_embedding, x], dim=1)
         # Concat pos token: shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.tensor()
         x = self.ln_pre(x)
 
-        x = ops.permute()(x, (1, 0, 2))  # NLD -> LND
         x = self.transformer(x)
-        x = ops.permute()(x, (1, 0, 2))  # LND -> NLD
 
         x = ops.dynamic_slice()(
             x=x,
@@ -283,6 +290,7 @@ class CLIPVisionTransformer(nn.Module):
     def __init__(
             self,
             embed_dim: int,
+            batch_size: int,
             vision_cfg: CLIPVisionCfg,
     ):
         super().__init__()
@@ -296,6 +304,7 @@ class CLIPVisionTransformer(nn.Module):
         # layers name: visual....
         vision_heads = vision_cfg.width // vision_cfg.head_width
         self.visual = VisualTransformer(
+            batch_size=batch_size,
             image_size=vision_cfg.image_size,
             patch_size=vision_cfg.patch_size,
             width=vision_cfg.width,

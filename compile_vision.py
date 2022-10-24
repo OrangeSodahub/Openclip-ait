@@ -79,15 +79,16 @@ def compile_clip(
     # TODO: support batch_size > 1
     ait_mod = ait_CLIP(
         embed_dim = embed_dim,
+        batch_size = batch_size,
         vision_cfg = vision_cfg,
     )
     ait_mod.name_parameter_tensor()
 
-    # TODO: + (1 if class_token else 0)
-    seqlen = (vision_cfg["image_size"] // vision_cfg["patch_size"]) ** 2
+    # This param `seqlen` is used in nn.MultiheadAttention
+    seqlen = (vision_cfg["image_size"] // vision_cfg["patch_size"]) ** 2 + 1
 
     # load pytorch model
-    openclip_mod = OpenCLIPModel(name='ViT-g-14::laion2b-s12b-b42k', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(
@@ -129,19 +130,20 @@ def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
+    # TODO: assert head_size in [8, 16, 32, 64, 128]
     # cfgs for model
     vision_cfg = {
-        'layers': 40,
-        'width': 1408,
-        'head_width': 88,
-        'mlp_ratio': 4.3637,
+        'layers': 24,
+        'width': 1024,
+        'head_width': 64,
+        'mlp_ratio': 4.,
         'patch_size': 14,
         'image_size': 224,
     },
 
     # CLIP
     compile_clip(
-        embed_dim=1024,
+        embed_dim=768,
         vision_cfg=vision_cfg[0],
         batch_size=batch_size,
         use_fp16_acc=use_fp16_acc,
