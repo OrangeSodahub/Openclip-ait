@@ -1,5 +1,5 @@
 # Openclip-ait
-Tested on RTX3080
+## Tested on RTX3080
 ------------------------------------------------------------
 shape     | model                      | pt (ms)  | ait (ms) 
 ----------|----------------------------|----------|----------
@@ -20,7 +20,7 @@ shape     | model                      | pt (ms)  | ait (ms)
 (1, 224, 224, 3)|                      |16.2587   |3.7753
 ------------------------------------------------------------
 
-Known Issues:
+## Known Issues:
 - ViT-g-14 not supported: `head_size` only be [8, 16, 32, 64, 128]
 (see: https://github.com/facebookincubator/AITemplate/issues/53)
 - `batch_size` > 1 not supported in VisionTransformer (see: https://github.com/facebookincubator/AITemplate/blob/44026ba7e7f5376a80cf0f2b333a0f25c0eeda6c/python/aitemplate/backend/cuda/tensor/expand.py#L21 ) (still need to verify.)
