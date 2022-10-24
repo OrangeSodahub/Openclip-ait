@@ -3,3 +3,6 @@
 
 # Build Files
 *tmp*
+
+# Debug Files
+*test*

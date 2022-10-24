@@ -60,7 +60,7 @@ def benchmark_clip(
     mask_seq = 0
     version = "ViT-B-32::laion400m_e31"
 
-    exe_module = Model("/home/zonlin/Jina/openclip-ait/tmp/CLIPTextModel/test.so")
+    exe_module = Model("/home/zonlin/Jina/tmp/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
         exit(-1)
@@ -75,11 +75,12 @@ def benchmark_clip(
     preprocess = image_transform(224, is_train=False)
     # for test
     if mode == "text":
-        input_ait = torch.ones((1, 2, 77), dtype=torch.int64).long().cuda()
-        input_pt = torch.ones((2, 77), dtype=torch.int64).long().cuda()
+        input_ait = torch.randint(0, 10, (1, 1, 77), dtype=torch.int64).long().cuda()
+        input_pt = input_ait[0]
     elif mode == "vision":
-        input_ait = torch.randint(0, 10, (1, 1, 224, 224, 3), dtype=torch.int64).half().cuda()
-        input_pt = torch.randint(0, 10, (1, 3, 224, 224), dtype=torch.int64).half().cuda()
+        input = torch.randint(0, 10, (1, 1, 224, 224, 3), dtype=torch.int64).half().cuda()
+        input_ait = input
+        input_pt = input
 
     # TODO: attention mask
     # attention_mask = torch.ones((batch_size, seqlen))
@@ -122,6 +123,12 @@ def benchmark_clip(
     # benchmark
     t, a, b = exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
     print(f"output_shape: {b['output_0'].shape}")
+
+    # -------- test --------
+    import numpy as np
+    np.savetxt("/home/zonlin/Jina/openclip-ait/test/res_ait.txt", b['output_0'][0].cpu().detach().numpy())
+    # ----------------------
+
     with open("sd_ait_benchmark.txt", "a") as f:
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
 

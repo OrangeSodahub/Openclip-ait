@@ -111,7 +111,7 @@ def compile_clip(
 
 
 @click.command()
-@click.option("--batch-size", default=2, help="batch size")
+@click.option("--batch-size", default=1, help="batch size")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):

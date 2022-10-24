@@ -4,6 +4,7 @@ Adapted from https://github.com/openai/CLIP. Originally MIT License, Copyright (
 """
 from collections import OrderedDict
 from dataclasses import dataclass
+from turtle import forward
 from typing import Tuple, Union, Optional
 
 from aitemplate.compiler import ops
@@ -69,7 +70,8 @@ class ResidualAttentionBlock(nn.Module):
             attn_drop=attention_dropout,
             causal=causal,
             mask_seq=mask_seq,
-            has_residual=True,
+            has_residual=False,
+            qkv_bias=True,
         )
         self.ln_attn = nn.LayerNorm(d_model, dtype="float16") if scale_attn else nn.Identity()
 
@@ -97,7 +99,7 @@ class ResidualAttentionBlock(nn.Module):
             output: of shape `(batch_size, context_length, d_model)`
         
         In pytorch, nn.MultiheadAttention does not operate the `add`
-        where the forword code like:
+        where the forward code like:
             ```
             x = self.attention(self.ln_1(x))
             x = x + self.ln_attn(x, attn_mask=attn_mask))
@@ -107,8 +109,9 @@ class ResidualAttentionBlock(nn.Module):
         if the seconde arg `residual` specified, then it will do `add` operation.
         MLP layer is not the same as the Attn layer. In AIT, nn.Linear accept `specialization="add"` in `fc2`.
         """
-        # TODO: When there is no unknown index, we expect dim products to be equal, got current shape numel=1085568 != new shape prod=1081344
-        x = self.attn(self.ln_1(x), x)
+        # TODO: attn_mask
+        x = self.ln_1(x)
+        x = x + self.ln_attn(self.attn(x))
 
         x = self.ln_2(x)
         x = x + self.mlp(x)
@@ -379,7 +382,7 @@ class CLIPTextTransformer(nn.Module):
 
         x = x + self.positional_embedding.tensor()
         x = self.transformer(x)
-        x = self.ln_final(x)
+        # x = self.ln_final(x)
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
