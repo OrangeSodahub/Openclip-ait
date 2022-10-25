@@ -129,7 +129,6 @@ class CLIPAttention(nn.Module):
         return attn_output
 
 
-# CLIPEncoderLayer
 class ResidualAttentionBlock(nn.Module):
     """
     :param d_model: hidden_size, comes from text_cfg.width
@@ -195,7 +194,6 @@ class ResidualAttentionBlock(nn.Module):
         return x
 
 
-# CLIPEncoder
 class Transformer(nn.Module):
     """
     :param width: hidden_size, comes from text_cfg.width
@@ -240,7 +238,6 @@ class Transformer(nn.Module):
 class VisualTransformer(nn.Module):
     def __init__(
             self,
-            batch_size: int,
             image_size: int,
             patch_size: int,
             width: int,
@@ -265,9 +262,8 @@ class VisualTransformer(nn.Module):
             stride=patch_size
         )
 
-        # TODO: support batch_size > 1
         self.class_embedding = nn.Parameter(
-            shape=[1, 1, width],
+            shape=[width],
             dtype="float16"
         )
         self.positional_embedding = nn.Parameter(
@@ -275,12 +271,13 @@ class VisualTransformer(nn.Module):
             dtype="float16"
         )
         self.ln_pre = nn.LayerNorm(width)
+
+        # TODO: flash_attn
         seq_len = self.grid_size[0] * self.grid_size[1] + 1
 
         self.transformer = Transformer(
             width=width,
             layers=layers,
-            # TODO: verify
             heads=heads,
             mlp_ratio=mlp_ratio,
             act_layer=act_layer
@@ -295,23 +292,15 @@ class VisualTransformer(nn.Module):
         # Flatten to tokens: shape = [*, width, grid ** 2] (pt) / [*, grid ** 2, width]
         x = ops.reshape()(x, [x.shape()[0].value(), -1, x.shape()[3].value()]) 
 
-        # TODO: Error: Constant tensor_0 was not set! Set the value with set_constant.
-        # cls_token_mask
-        # zeros = [
-        #     [[
-        #     0 for _ in range(x.shape()[-1].value())
-        # ]] for _ in range(x.shape()[0].value())
-        # ]
-        # zeros = Tensor([x.shape()[0].value(), 1, x.shape()[-1].value()], dtype="float16", value=zeros)
-
-        # TODO: tensors expected to have the same dimensions except concat_dim!
         # expand shape[0] to batch_size
-        class_embedding = ops.expand()(
-            self.class_embedding.tensor(), [x.shape()[0].value(), -1, -1]
+        class_embedding = ops.unsqueeze(0)(
+            ops.unsqueeze(0)(self.class_embedding.tensor())
         )
-        # Concat cls token: shape = [*, grid ** 2 + 1, width]
+        class_embedding = ops.concatenate()(
+            [class_embedding for _ in range(x.shape()[0].value())],
+            dim=0
+        )
         x = ops.concatenate()([class_embedding, x], dim=1)
-        # Concat pos token: shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.tensor()
         x = self.ln_pre(x)
 
@@ -360,7 +349,6 @@ class CLIPVisionTransformer(nn.Module):
     def __init__(
             self,
             embed_dim: int,
-            batch_size: int,
             vision_cfg: CLIPVisionCfg,
     ):
         super().__init__()
@@ -374,7 +362,6 @@ class CLIPVisionTransformer(nn.Module):
         # layers name: visual....
         vision_heads = vision_cfg.width // vision_cfg.head_width
         self.visual = VisualTransformer(
-            batch_size=batch_size,
             image_size=vision_cfg.image_size,
             patch_size=vision_cfg.patch_size,
             width=vision_cfg.width,

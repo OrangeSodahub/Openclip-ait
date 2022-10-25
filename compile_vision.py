@@ -59,6 +59,7 @@ def map_clip_params(pt_mod, width, patch_size, depth, seqlen, batch_size):
         print(f"name:{ait_name}, shape:{arr.shape}")
         params_ait[ait_name] = arr
 
+        # TODO: flash_attn
         if USE_CUDA:
             for i in range(depth):
                 prefix = "visual_transformer_resblocks_%d_attn_cu_length" % (i)
@@ -76,19 +77,17 @@ def compile_clip(
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
 ):
-    # TODO: support batch_size > 1
     ait_mod = ait_CLIP(
         embed_dim = embed_dim,
-        batch_size = batch_size,
         vision_cfg = vision_cfg,
     )
     ait_mod.name_parameter_tensor()
 
-    # This param `seqlen` is used in nn.MultiheadAttention
+    # TODO: This param `seqlen` is used in nn.MultiheadAttention
     seqlen = (vision_cfg["image_size"] // vision_cfg["patch_size"]) ** 2 + 1
 
     # load pytorch model
-    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-g-14::laion2b-s12b-b42k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(
@@ -133,17 +132,17 @@ def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):
     # TODO: assert head_size in [8, 16, 32, 64, 128]
     # cfgs for model
     vision_cfg = {
-        'layers': 24,
-        'width': 1024,
-        'head_width': 64,
-        'mlp_ratio': 4.,
+        'layers': 40,
+        'width': 1408,
+        'head_width': 88,
+        'mlp_ratio': 4.3637,
         'patch_size': 14,
         'image_size': 224,
     },
 
     # CLIP
     compile_clip(
-        embed_dim=768,
+        embed_dim=1024,
         vision_cfg=vision_cfg[0],
         batch_size=batch_size,
         use_fp16_acc=use_fp16_acc,

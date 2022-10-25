@@ -66,7 +66,7 @@ def benchmark_clip(
         exit(-1)
 
     # run PT clip
-    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-g-14::laion2b-s12b-b42k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
 
@@ -78,9 +78,9 @@ def benchmark_clip(
         input_ait = torch.randint(0, 10, (1, 1, 77), dtype=torch.int64).long().cuda()
         input_pt = input_ait[0]
     elif mode == "vision":
-        input = torch.randint(0, 10, (1, 1, 224, 224, 3), dtype=torch.int64).half().cuda()
-        input_ait = input
-        input_pt = input
+        input = torch.randint(0, 10, (1, 1, 224, 224, 3), dtype=torch.int64)
+        input_ait = input.half().cuda()
+        input_pt = input[0].permute((0, 3, 1, 2)).cuda()
 
     # TODO: attention mask
     # attention_mask = torch.ones((batch_size, seqlen))
@@ -144,7 +144,7 @@ def benchmark(batch_size, verify, benchmark_pt):
     torch.manual_seed(4896)
 
     # CLIP
-    benchmark_clip(batch_size=batch_size, mode="text", benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_clip(batch_size=batch_size, mode="vision", benchmark_pt=benchmark_pt, verify=verify)
 
 
 if __name__ == "__main__":
