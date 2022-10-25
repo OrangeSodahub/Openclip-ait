@@ -10,8 +10,12 @@ from typing import Tuple, Union, Optional
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
 
 from .utils import to_2tuple
+
+
+USE_CUDA = detect_target().name() == "cuda"
 
 
 class QuickGELUActivation(nn.Module):
@@ -24,6 +28,105 @@ class QuickGELUActivation(nn.Module):
         x1 = ops.sigmoid(x1)
         x = x * x1
         return x
+
+
+class CLIPAttention(nn.Module):
+    """
+    adapted from torch.nn.attention, no `flash_attention`
+    """
+
+    def __init__(
+        self,
+        dim,
+        num_heads=8,
+        qkv_bias=False,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        has_residual=True,
+        causal=False,
+        mask_seq=0,
+    ):
+        super().__init__()
+        assert (
+            dim % num_heads == 0
+        ), f"dim {dim} should be divisible by num_heads {num_heads}"
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        self.scale = head_dim**-0.5
+        self.causal = causal
+        self.has_residual = has_residual
+        self.mask_seq = mask_seq
+
+        if USE_CUDA:
+            self.qkv_weight = nn.Parameter(
+                shape=[dim * 3, dim],
+                dtype="float16"
+            )
+            if qkv_bias:
+                self.qkv_bias = nn.Parameter(
+                    shape=[dim * 3],
+                    dtype="float16"
+                )
+        else:
+            raise RuntimeError("no CUDA!")
+
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(proj_drop)
+    
+    def get_shape(self, x):
+        shape = [it.value() for it in x._attrs["shape"]]
+        return shape   
+
+    def qkv_proj(self, x: Tensor):
+        """
+        Performs the in-projection step of teh attention operation, using packed weights.
+        Output is a triple containing projection tensors for query, key and value.
+        :param x: q == k == v == x of shape `(batch_size, context_length, d_model)`
+        """
+        # sefl-attention
+        batch, seqlen, hidden = self.get_shape(x)
+        x = ops.reshape()(x, [-1, hidden])
+        x = ops.gemm_rcr_bias()(
+                x,
+                self.qkv_weight.tensor(),
+                self.qkv_bias.tensor()
+            )
+        x = ops.reshape()(x, [batch, seqlen, hidden * 3])
+        return ops.chunk()(x, chunks=3, dim=-1)
+
+    def attention(self, q: Tensor, k: Tensor, v: Tensor):
+        """
+        Computes scaled dot product attention on query, key and value tensors. No weights.
+        :param q: qurey tensor of shape `(batch_size * num_heads, context_length, head_dim)`
+        :param k: key tensor of shape `(batch_size * num_heads, context_length, head_dim)`
+        :param v: value tensor of shape `(batch_size * num_heads, context_length, head_dim)`
+        """
+        scale = Tensor(
+            shape=[], dtype="float16", name="scale", value=self.scale
+        )
+        q = ops.elementwise(FuncEnum.MUL)(q, scale)
+        # (B*NH, C, E) x (B*NH, E, C) -> (B*NH, C, C)
+        attn = ops.bmm_rrr()(q, ops.permute021()(k))
+        attn = ops.softmax()(attn, -1)
+        # (B*NH, C, C) x (B*NH, C, E) -> (B*NH, C, E)
+        output = ops.bmm_rrr()(attn, v)
+        return output
+
+    # TODO: attn_mask
+    def forward(self, x: Tensor, residual: Optional[Tensor] = None):
+        """forward pass for calling mha module"""
+        batch, seqlen, hidden = self.get_shape(x)
+        q, k, v = self.qkv_proj(x)
+        attn_output = self.attention(q, k, v)
+        attn_output = ops.reshape()(
+            ops.permute102()(attn_output),
+            [seqlen, batch, hidden]
+        )
+        attn_output = self.proj(attn_output)
+        attn_output = self.proj_drop(attn_output)
+        attn_output = ops.permute102()(attn_output)
+        return attn_output
 
 
 # CLIPEncoderLayer
@@ -44,10 +147,6 @@ class ResidualAttentionBlock(nn.Module):
             act_layer,
             attention_dropout = 0.0,
             mlp_ratio: float = 4.0,
-            batch_size = 1,
-            seq_len = 16,
-            causal = False,
-            mask_seq = 0,
             scale_cosine_attn: bool = False,
             scale_heads: bool = False,
             scale_attn: bool = False,
@@ -55,23 +154,11 @@ class ResidualAttentionBlock(nn.Module):
     ):
         super().__init__()
 
-        # FIXME torchscript issues need to be resolved for custom attention
-        # if scale_cosine_attn or scale_heads:
-        #     self.attn = Attention(
-        #        d_model, n_head,
-        #        scaled_cosine=scale_cosine_attn,
-        #        scale_heads=scale_heads,
-        #     )
-        self.attn = nn.MultiheadAttention(
+        self.attn = CLIPAttention(
             dim=d_model,
-            batch_size=batch_size,
-            seq_len=seq_len,
             num_heads=n_head,
-            attn_drop=attention_dropout,
-            causal=causal,
-            mask_seq=mask_seq,
-            has_residual=False,
             qkv_bias=True,
+            has_residual=False,
         )
         self.ln_attn = nn.LayerNorm(d_model, dtype="float16") if scale_attn else nn.Identity()
 
@@ -97,17 +184,6 @@ class ResidualAttentionBlock(nn.Module):
         attn:
             input: of shape `(batch_size, context_length, d_model)`
             output: of shape `(batch_size, context_length, d_model)`
-        
-        In pytorch, nn.MultiheadAttention does not operate the `add`
-        where the forward code like:
-            ```
-            x = self.attention(self.ln_1(x))
-            x = x + self.ln_attn(x, attn_mask=attn_mask))
-            x = x + self.mlp(self.ln_2(x))
-            ```
-        In AIT, nn.MultiheadAttention accept `*args` which support two arguments,
-        if the seconde arg `residual` specified, then it will do `add` operation.
-        MLP layer is not the same as the Attn layer. In AIT, nn.Linear accept `specialization="add"` in `fc2`.
         """
         # TODO: attn_mask
         x = self.ln_1(x)
@@ -133,10 +209,6 @@ class Transformer(nn.Module):
         heads: int,
         act_layer: QuickGELUActivation,
         mlp_ratio: float = 4.0,
-        batch_size: int = 1,
-        seq_len: int = 64,
-        causal = False,
-        mask_seq: int = 0,
     ):
         super().__init__()
         self.width = width
@@ -149,10 +221,6 @@ class Transformer(nn.Module):
                 n_head=heads,
                 mlp_ratio=mlp_ratio,
                 act_layer=act_layer,
-                batch_size=batch_size,
-                seq_len=seq_len,
-                causal=causal,
-                mask_seq=mask_seq,
             )
             for _ in range(layers)
         ])
@@ -187,14 +255,15 @@ class VisualTransformer(nn.Module):
         self.patch_size = to_2tuple(patch_size)
         self.grid_size = (self.image_size[0] // self.patch_size[0], self.image_size[1] // self.patch_size[1])
         self.output_dim = output_dim
-        # Expand channel from 3 to 4
-        # Also Expand conv1_weight to [width, 4, patch_size, patch_size])
+
+        # Expand channel from 3 to 4, Also Expand conv1_weight to [width, 4, patch_size, patch_size])
+        # In AIT, use Conv2dBiasFewChannels when channels < 4, set bias to zeros
         self.conv1 = nn.Conv2dBiasFewChannels(
             in_channels=3,
             out_channels=width,
             kernel_size=patch_size,
             stride=patch_size
-        ) # bias = Flase => Conv2d == Conv2dBias == Conv2dBiasFewChannels
+        )
 
         # TODO: support batch_size > 1
         self.class_embedding = nn.Parameter(
@@ -211,9 +280,7 @@ class VisualTransformer(nn.Module):
         self.transformer = Transformer(
             width=width,
             layers=layers,
-            batch_size=batch_size,
             # TODO: verify
-            seq_len=seq_len,
             heads=heads,
             mlp_ratio=mlp_ratio,
             act_layer=act_layer
@@ -346,16 +413,11 @@ class CLIPTextTransformer(nn.Module):
         act_layer = QuickGELUActivation()
 
         # General Transformer
-        # self.encoder = CLIPEncoder(...)
         self.transformer = Transformer(
             width=text_cfg.width,
             layers=text_cfg.layers,
             heads=text_cfg.heads,
             act_layer=act_layer,
-            batch_size=batch_size,
-            seq_len=seq_len,
-            causal=causal,
-            mask_seq=mask_seq,
         )
 
         self.vocab_size = text_cfg.vocab_size
@@ -368,12 +430,10 @@ class CLIPTextTransformer(nn.Module):
 
     def encode_text(self, text: Tensor):
         """
-        :param text: of shape (batch_size, context_length)
+        :param text: of shape `(batch_size, context_length)`
         In Pytorch, when `batch_first` is False the nn.MultiheadAttention gets input of shape :math:`(L, N, E_q)` -> `(context_length, batch_size, d_model)`
         In AIT, nn.MultiheadAttention gets input of shape `(batch_size, context_length, d_model)`
-        See aitemplate.fronted.nn.attention.MultiheadAttention.forward
         """
-        # CLIPTextEncodings.forward
         input_shape = ops.size()(text)
         
         text = ops.reshape()(text, [-1]) # [batch_size * context_length]
@@ -382,7 +442,7 @@ class CLIPTextTransformer(nn.Module):
 
         x = x + self.positional_embedding.tensor()
         x = self.transformer(x)
-        # x = self.ln_final(x)
+        x = self.ln_final(x)
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
@@ -436,7 +496,6 @@ class CLIP(nn.Module):
         )
 
         # General Transformer
-        # self.encoder = CLIPEncoder(...)
         self.transformer = Transformer(
             width=text_cfg.width,
             layers=text_cfg.layers,
@@ -457,7 +516,6 @@ class CLIP(nn.Module):
         self.logit_scale = nn.Parameter(shape=[], dtype="float16")
 
     def encode_text(self, text: Tensor):
-        # CLIPTextEncodings.forward
         input_shape = ops.size()(text)
         # [B * S]
         text = ops.reshape()(text, [-1])
@@ -465,9 +523,7 @@ class CLIP(nn.Module):
         x = ops.reshape()(x, [input_shape[0], input_shape[1], -1])
 
         x = x + self.positional_embedding.tensor()
-        x = ops.permute()(x, (1, 0, 2)) # NLD -> LND
         x = self.transformer(x)
-        x = ops.permute()(x, (1, 0, 2))  # LND -> NLD
         x = self.ln_final(x)
 
         # x.shape = [batch_size, n_ctx, transformer.width]
