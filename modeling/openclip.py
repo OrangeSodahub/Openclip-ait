@@ -4,7 +4,6 @@ Adapted from https://github.com/openai/CLIP. Originally MIT License, Copyright (
 """
 from collections import OrderedDict
 from dataclasses import dataclass
-from turtle import forward
 from typing import Tuple, Union, Optional
 
 from aitemplate.compiler import ops
