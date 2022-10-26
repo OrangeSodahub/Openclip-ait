@@ -144,7 +144,7 @@ def benchmark(batch_size, verify, benchmark_pt):
     torch.manual_seed(4896)
 
     # CLIP
-    benchmark_clip(batch_size=batch_size, mode="vision", benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_clip(batch_size=batch_size, mode="text", benchmark_pt=benchmark_pt, verify=verify)
 
 
 if __name__ == "__main__":
