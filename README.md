@@ -25,3 +25,4 @@ shape     | model                      | pt (ms)  | ait (ms) | without `flash_at
 
 ## Known Issues:
 - Index Tensor with Tensor not supported in `encode_text` (see: https://github.com/facebookincubator/AITemplate/issues/49)
+- Vit-g-14 with head_size=88 not supported by flash attention (see: https://github.com/facebookincubator/AITemplate/issues/53)
