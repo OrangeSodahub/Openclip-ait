@@ -55,11 +55,7 @@ def benchmark_clip(
     batch_size=1,
     mode="text",
     benchmark_pt=False,
-    verify=False,
 ):
-    mask_seq = 0
-    version = "ViT-B-32::laion400m_e31"
-
     exe_module = Model("/home/zonlin/Jina/tmp/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
@@ -83,9 +79,6 @@ def benchmark_clip(
         input_pt = input[0].permute((0, 3, 1, 2)).cuda()
 
     # TODO: attention mask
-    # attention_mask = torch.ones((batch_size, seqlen))
-    # attention_mask[-1, -mask_seq:] = 0
-    # attention_mask = None
 
     # PT benchmark
     if benchmark_pt:
@@ -103,19 +96,6 @@ def benchmark_clip(
         print(f"shape is {shape}")
         ys.append(torch.empty(shape).cuda().half())
     # exe_module.run_with_tensors(inputs, ys)
-
-    # TODO: verification
-    # if verify:
-    #     eps = 1e-1
-    #     pt_np = pt_ys[0].detach().cpu().numpy()
-    #     np.testing.assert_allclose(
-    #         pt_np,
-    #         ys[0].cpu().numpy(),
-    #         atol=eps,
-    #         rtol=eps,
-    #     )
-    #     print("CLIPTextTransformer verification pass")
-
 
     # AIT benchmark
     # warmup
@@ -135,16 +115,15 @@ def benchmark_clip(
 
 @click.command()
 @click.option("--batch-size", default=1, help="batch size")
-@click.option("--verify", type=bool, default=False, help="verify correctness")
 @click.option("--benchmark-pt", type=bool, default=True, help="run pt benchmark")
-def benchmark(batch_size, verify, benchmark_pt):
+def benchmark(batch_size, benchmark_pt):
     # assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
 
     # CLIP
-    benchmark_clip(batch_size=batch_size, mode="text", benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_clip(batch_size=batch_size, mode="text", benchmark_pt=benchmark_pt)
 
 
 if __name__ == "__main__":

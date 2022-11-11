@@ -41,7 +41,6 @@ class CLIPAttention(nn.Module):
         qkv_bias=False,
         attn_drop=0.0,
         proj_drop=0.0,
-        has_residual=True,
         causal=False,
         mask_seq=0,
     ):
@@ -53,7 +52,6 @@ class CLIPAttention(nn.Module):
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
         self.causal = causal
-        self.has_residual = has_residual
         self.mask_seq = mask_seq
 
         if USE_CUDA:
@@ -70,7 +68,7 @@ class CLIPAttention(nn.Module):
             raise RuntimeError("no CUDA!")
 
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        self.proj = nn.Linear(dim, dim, specialization="add")
         self.proj_drop = nn.Dropout(proj_drop)
     
     def get_shape(self, x):
@@ -141,10 +139,10 @@ class CLIPAttention(nn.Module):
             ops.permute102()(attn_output),
             [seqlen, batch, hidden]
         )
-        attn_output = self.proj(attn_output)
-        attn_output = self.proj_drop(attn_output)
         # `s b (h d) -> b s (h d)`
         attn_output = ops.permute102()(attn_output)
+        attn_output = self.proj(attn_output, residual)
+        attn_output = self.proj_drop(attn_output)
         return attn_output
 
 
@@ -176,7 +174,6 @@ class ResidualAttentionBlock(nn.Module):
             dim=d_model,
             num_heads=n_head,
             qkv_bias=True,
-            has_residual=False,
         )
         self.ln_attn = nn.LayerNorm(d_model, dtype="float16") if scale_attn else nn.Identity()
 
@@ -204,13 +201,11 @@ class ResidualAttentionBlock(nn.Module):
             output: of shape `(batch_size, context_length, d_model)`
         """
         # TODO: attn_mask
-        x = self.ln_1(x)
-        # x = x + self.ln_attn(self.attn(x))
+        residual = x
+        x = self.ln_attn(self.attn(self.ln_1(x), residual))
+        x = x + self.mlp(self.ln_2(x))
 
-        # x = self.ln_2(x)
-        # x = x + self.mlp(x)
-
-        return self.attn(x)
+        return x
 
 
 class Transformer(nn.Module):
