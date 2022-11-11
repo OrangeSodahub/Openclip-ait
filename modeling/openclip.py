@@ -85,7 +85,9 @@ class CLIPAttention(nn.Module):
         """
         # sefl-attention
         batch, seqlen, hidden = self.get_shape(x)
+        # 'b s hd -> (b s) hd
         x = ops.reshape()(x, [-1, hidden])
+        # compute in projection
         x = ops.gemm_rcr_bias()(
                 x,
                 self.qkv_weight.tensor(),
@@ -116,14 +118,32 @@ class CLIPAttention(nn.Module):
     def forward(self, x: Tensor, residual: Optional[Tensor] = None):
         """forward pass for calling mha module"""
         batch, seqlen, hidden = self.get_shape(x)
+        # input: `(batch, seqlen, hidden)`
+        # output: `(batch, seqlen, hidden)`
         q, k, v = self.qkv_proj(x)
+        # `b s (h d) -> s b (h d)`
+        q = ops.permute102()(q)
+        k = ops.permute102()(k)
+        v = ops.permute102()(v)
+        # `s b (h d) -> s (b h) d`
+        q = ops.reshape()(q, [seqlen, batch * self.num_heads, hidden // self.num_heads])
+        k = ops.reshape()(k, [seqlen, batch * self.num_heads, hidden // self.num_heads])
+        v = ops.reshape()(v, [seqlen, batch * self.num_heads, hidden // self.num_heads])
+        # `s (b h) d -> (b h) s d`
+        q = ops.permute102()(q)
+        k = ops.permute102()(k)
+        v = ops.permute102()(v)
+        # input: `(batch*num_heads, seqlen, head_dim)`
+        # output: `(batch*num_heads, seqlen, head_dim)`
         attn_output = self.attention(q, k, v)
+        # `(b h) s d -> s b (h d)`
         attn_output = ops.reshape()(
             ops.permute102()(attn_output),
             [seqlen, batch, hidden]
         )
         attn_output = self.proj(attn_output)
         attn_output = self.proj_drop(attn_output)
+        # `s b (h d) -> b s (h d)`
         attn_output = ops.permute102()(attn_output)
         return attn_output
 
@@ -185,12 +205,12 @@ class ResidualAttentionBlock(nn.Module):
         """
         # TODO: attn_mask
         x = self.ln_1(x)
-        x = x + self.ln_attn(self.attn(x))
+        # x = x + self.ln_attn(self.attn(x))
 
-        x = self.ln_2(x)
-        x = x + self.mlp(x)
+        # x = self.ln_2(x)
+        # x = x + self.mlp(x)
 
-        return x
+        return self.attn(x)
 
 
 class Transformer(nn.Module):

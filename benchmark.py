@@ -66,7 +66,7 @@ def benchmark_clip(
         exit(-1)
 
     # run PT clip
-    openclip_mod = OpenCLIPModel(name='ViT-g-14::laion2b-s12b-b42k', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
 
