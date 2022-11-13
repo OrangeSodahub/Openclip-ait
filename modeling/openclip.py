@@ -443,7 +443,7 @@ class CLIPTextTransformer(nn.Module):
 
         x = x + self.positional_embedding.tensor()
         x = self.transformer(x)
-        x = self.ln_final(x)
+        # x = self.ln_final(x)
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)

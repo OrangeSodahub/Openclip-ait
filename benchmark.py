@@ -52,24 +52,25 @@ def mark_output(y):
 
 
 def benchmark_clip(
+    runtime_path,
     batch_size=1,
     mode="text",
     benchmark_pt=False,
 ):
-    exe_module = Model("/home/zonlin/Jina/tmp/CLIPTextModel/test.so")
+    # set up models
+    exe_module = Model(runtime_path)
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
         exit(-1)
 
-    # run PT clip
     openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
 
+    # set up inputs
     # TODO: wrong inputs
     text = tokenizer.tokenize(["a diagram"]).cuda()
     preprocess = image_transform(224, is_train=False)
-    # for test
     if mode == "text":
         input_ait = torch.randint(0, 10, (1, 1, 77), dtype=torch.int64).long().cuda()
         input_pt = input_ait[0]
@@ -87,7 +88,7 @@ def benchmark_clip(
         with open("sd_pt_benchmark.txt", "a") as f:
             f.write(f"clip batch_size: {batch_size}, latency: {pt_time} ms\n")
 
-    # run AIT clip
+    # AIT benchmark
     ys = []
     num_ouputs = len(exe_module.get_output_name_to_index_map())
     print(f"num_outputs is {num_ouputs}")
@@ -95,19 +96,15 @@ def benchmark_clip(
         shape = exe_module.get_output_maximum_shape(i)
         print(f"shape is {shape}")
         ys.append(torch.empty(shape).cuda().half())
-    # exe_module.run_with_tensors(inputs, ys)
 
-    # AIT benchmark
-    # warmup
-    exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
-    # benchmark
+    exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4) # warm up
     t, a, b = exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
     print(f"output_shape: {b['output_0'].shape}")
 
-    # -------- test --------
+    # ----------------------------------------- debug ---------------------------------------------------
     import numpy as np
     np.savetxt("/home/zonlin/Jina/openclip-ait/test/res_ait.txt", b['output_0'][0].cpu().detach().numpy())
-    # ----------------------
+    # ---------------------------------------------------------------------------------------------------
 
     with open("sd_ait_benchmark.txt", "a") as f:
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
@@ -117,13 +114,17 @@ def benchmark_clip(
 @click.option("--batch-size", default=1, help="batch size")
 @click.option("--benchmark-pt", type=bool, default=True, help="run pt benchmark")
 def benchmark(batch_size, benchmark_pt):
-    # assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
 
     # CLIP
-    benchmark_clip(batch_size=batch_size, mode="text", benchmark_pt=benchmark_pt)
+    benchmark_clip(
+        runtime_path="/home/zonlin/Jina/tmp/CLIPTextModel/test.so",
+        batch_size=batch_size,
+        mode="text",
+        benchmark_pt=benchmark_pt
+    )
 
 
 if __name__ == "__main__":
