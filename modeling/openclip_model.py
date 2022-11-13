@@ -32,7 +32,7 @@ class OpenCLIPModel(CLIPModel):
             self._model = load_openai_model(model_path, device=device, jit=jit)
         else:
             self._model = load_openclip_model(
-                self._model_name, model_path=model_path, device=device, jit=jit
+                self._model_name, model_path=model_path, device=device, jit=jit, force_quick_gelu=True,
             )
 
     @staticmethod

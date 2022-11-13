@@ -36,19 +36,21 @@ access_token = True
 pipe = None
 
 
-def get_int_shape(x):
-    shape = [it.value() for it in x._attrs["shape"]]
-    return shape
-
-
-def mark_output(y):
-    if type(y) is not tuple:
-        y = (y,)
-    for i in range(len(y)):
-        y[i]._attrs["is_output"] = True
-        y[i]._attrs["name"] = "output_%d" % (i)
-        y_shape = [d._attrs["values"][0] for d in y[i]._attrs["shape"]]
-        print("AIT output_{} shape: {}".format(i, y_shape))
+def final_projection(x, text, pt_mod):
+    """
+    This operation is extracted from CLIPTextTransformer.encode_text()
+    need to rewrite in ait and move back to original model
+    
+    : param x: shape (batch_size, seqlen, hidden)
+    : param text: shape (1, batch_size, seqlen)
+    """
+    x = x['output_0']
+    params = dict(pt_mod.named_parameters())
+    for key, arr in params.items():
+        if key == 'text_projection':
+            if arr.dtype == torch.float32:
+                arr.data = arr.data.half()
+            return x[torch.arange(x.shape[0]), text[0].argmax(dim=-1)] @ arr
 
 
 def benchmark_clip(
@@ -56,6 +58,7 @@ def benchmark_clip(
     batch_size=1,
     mode="text",
     benchmark_pt=False,
+    save_results=False,
 ):
     # set up models
     exe_module = Model(runtime_path)
@@ -87,6 +90,7 @@ def benchmark_clip(
         print(f"PT batch_size: {batch_size}, {pt_time} ms")
         with open("sd_pt_benchmark.txt", "a") as f:
             f.write(f"clip batch_size: {batch_size}, latency: {pt_time} ms\n")
+        res_pt = pt_mod(input_pt)
 
     # AIT benchmark
     ys = []
@@ -99,12 +103,22 @@ def benchmark_clip(
 
     exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4) # warm up
     t, a, b = exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
-    print(f"output_shape: {b['output_0'].shape}")
+    res_ait = final_projection(b, input_ait, pt_mod)
+    print(f"output_shape: {res_ait.shape}")
 
+    # output results
+    res_pt = res_pt.cpu().detach().numpy()
+    res_ait = res_ait.cpu().detach().numpy()
     # ----------------------------------------- debug ---------------------------------------------------
-    import numpy as np
-    np.savetxt("/home/zonlin/Jina/openclip-ait/test/res_ait.txt", b['output_0'][0].cpu().detach().numpy())
+    if save_results:
+        import numpy as np
+        np.savetxt("./test/res_pt.txt", res_pt[0])
+        np.savetxt("./test/res_ait.txt", res_ait[0])
     # ---------------------------------------------------------------------------------------------------
+    max_diff = abs(res_pt-res_ait).max()
+    mean_diff = abs(res_pt-res_ait).mean()
+    print(f"{max_diff=:.5f}")
+    print(f"{mean_diff=:.5f}")
 
     with open("sd_ait_benchmark.txt", "a") as f:
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
@@ -120,10 +134,11 @@ def benchmark(batch_size, benchmark_pt):
 
     # CLIP
     benchmark_clip(
-        runtime_path="/home/zonlin/Jina/tmp/CLIPTextModel/test.so",
+        runtime_path="./CLIPModel/CLIPTextModel/test.so",
         batch_size=batch_size,
         mode="text",
-        benchmark_pt=benchmark_pt
+        benchmark_pt=benchmark_pt,
+        save_results=False,
     )
 
 

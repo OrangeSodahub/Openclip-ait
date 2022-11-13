@@ -181,6 +181,8 @@ class ResidualAttentionBlock(nn.Module):
         self.ln_2 = nn.LayerNorm(d_model, dtype="float16")
         mlp_width = int(d_model * mlp_ratio)
         # CLIPMLP
+        # openclip uses torch.nn.GELU by default and ait uses QueckGELU, differences will
+        # be added due to these two different computation.
         self.mlp = nn.Sequential(OrderedDict([
             ("c_fc", nn.Linear(d_model, mlp_width, dtype="float16")),
             ('ln', nn.LayerNorm(mlp_width, dtype="float16") if scale_fc else nn.Identity()),
@@ -201,8 +203,7 @@ class ResidualAttentionBlock(nn.Module):
             output: of shape `(batch_size, context_length, d_model)`
         """
         # TODO: attn_mask
-        residual = x
-        x = self.ln_attn(self.attn(self.ln_1(x), residual))
+        x = self.ln_attn(self.attn(self.ln_1(x), x))
         x = x + self.mlp(self.ln_2(x))
 
         return x
@@ -443,12 +444,10 @@ class CLIPTextTransformer(nn.Module):
 
         x = x + self.positional_embedding.tensor()
         x = self.transformer(x)
-        # x = self.ln_final(x)
+        x = self.ln_final(x)
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        # a = Tensor(shape=[1, x.shape()[0].value()], value=[i for i in range(x.shape()[0].value())])
-
         # TODO: better way to index
         # index = ops.argmax(dim=-1)(x)
         # x = ops.bmm_rrr()(x[a, ops.argmax(dim=-1)(x)], self.text_projection)
@@ -529,8 +528,6 @@ class CLIP(nn.Module):
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        a = Tensor(shape=[1, x.shape()[0].value()], value=[i for i in range(x.shape()[0].value())])
-
         # TODO: better way to index
         # index = ops.argmax(dim=-1)(x)
         # x = ops.bmm_rrr()(x[a, ops.argmax(dim=-1)(x)], self.text_projection)
