@@ -75,10 +75,10 @@ def benchmark_clip(
     text = tokenizer.tokenize(["a diagram"]).cuda()
     preprocess = image_transform(224, is_train=False)
     if mode == "text":
-        input_ait = torch.randint(0, 10, (1, 1, 77), dtype=torch.int64).long().cuda()
+        input_ait = torch.randint(0, 10, (1, batch_size, 77), dtype=torch.int64).long().cuda()
         input_pt = input_ait[0]
     elif mode == "vision":
-        input = torch.randint(0, 10, (1, 1, 224, 224, 3), dtype=torch.int64)
+        input = torch.randint(0, 10, (1, batch_size, 224, 224, 3), dtype=torch.int64)
         input_ait = input.half().cuda()
         input_pt = input[0].permute((0, 3, 1, 2)).cuda()
 
@@ -103,7 +103,10 @@ def benchmark_clip(
 
     exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4) # warm up
     t, a, b = exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
-    res_ait = final_projection(b, input_ait, pt_mod)
+    if mode == 'text':
+        res_ait = final_projection(b, input_ait, pt_mod)
+    elif mode == 'vision':
+        res_ait = b['output_0']
     print(f"output_shape: {res_ait.shape}")
 
     # output results
@@ -124,23 +127,28 @@ def benchmark_clip(
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
 
 
-@click.command()
-@click.option("--batch-size", default=1, help="batch size")
-@click.option("--benchmark-pt", type=bool, default=True, help="run pt benchmark")
-def benchmark(batch_size, benchmark_pt):
+def benchmark(batch_size, benchmark_pt, mode):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
 
+    if mode == "text":
+        path = "./CLIPModel/CLIPTextModel/test.so"
+    else:
+        path = "./CLIPModel/CLIPVisionModel/test.so"
     # CLIP
     benchmark_clip(
-        runtime_path="./CLIPModel/CLIPTextModel/test.so",
+        runtime_path=path,
         batch_size=batch_size,
-        mode="text",
+        mode=mode,
         benchmark_pt=benchmark_pt,
         save_results=False,
     )
 
 
 if __name__ == "__main__":
-    benchmark()
+    benchmark(
+        batch_size=1,
+        benchmark_pt=True,
+        mode="vision",
+    )

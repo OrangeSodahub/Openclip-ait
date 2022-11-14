@@ -74,18 +74,12 @@ def compile_clip(
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
 ):
-    mask_seq = 0
-    causal = True
     depth = text_cfg['layers']              # 12
     seqlen = text_cfg['context_length']     # 77
 
     ait_mod = ait_CLIP(
         embed_dim = embed_dim,
         text_cfg = text_cfg,
-        batch_size = batch_size,
-        seq_len = seqlen,
-        causal = causal,
-        mask_seq = mask_seq,
     )
     ait_mod.name_parameter_tensor()
 
@@ -111,7 +105,7 @@ def compile_clip(
 
 
 @click.command()
-@click.option("--batch-size", default=1, help="batch size")
+@click.option("--batch-size", default=16, help="batch size")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):

@@ -36,6 +36,7 @@ def map_clip_params(pt_mod, width, patch_size, depth, seqlen, batch_size):
         ait_name = name.replace(".", "_")
         if not name.startswith("visual"):
             continue
+        # TODO: remove rename
         if name.endswith("out_proj.weight"):
             ait_name = ait_name.replace("out_proj", "proj")
         elif name.endswith("out_proj.bias"):
@@ -60,11 +61,11 @@ def map_clip_params(pt_mod, width, patch_size, depth, seqlen, batch_size):
         params_ait[ait_name] = arr
 
         # TODO: flash_attn
-        if USE_CUDA:
-            for i in range(depth):
-                prefix = "visual_transformer_resblocks_%d_attn_cu_length" % (i)
-                cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
-                params_ait[prefix] = torch.from_numpy(cu_len).cuda()
+        # if USE_CUDA:
+        #     for i in range(depth):
+        #         prefix = "visual_transformer_resblocks_%d_attn_cu_length" % (i)
+        #         cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
+        #         params_ait[prefix] = torch.from_numpy(cu_len).cuda()
 
     return params_ait
 
@@ -83,17 +84,18 @@ def compile_clip(
     )
     ait_mod.name_parameter_tensor()
 
-    # TODO: This param `seqlen` is used in nn.MultiheadAttention
+    # TODO: This param `seqlen` is used in flash attention
     seqlen = (vision_cfg["image_size"] // vision_cfg["patch_size"]) ** 2 + 1
 
     # load pytorch model
-    openclip_mod = OpenCLIPModel(name='ViT-g-14::laion2b-s12b-b42k', device='cuda')
+    openclip_mod = OpenCLIPModel(name='ViT-L-14::laion2b-s32b-b82k', device='cuda')
     pt_mod = openclip_mod._model
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(
         pt_mod=pt_mod,
         width=vision_cfg['width'],
         patch_size=vision_cfg['patch_size'],
+        # TODO: flash attention
         depth=vision_cfg['layers'],
         seqlen=seqlen,
         batch_size=batch_size,
@@ -113,7 +115,7 @@ def compile_clip(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
     
-    compile_model(Y, target, "./tmp", "CLIPTextModel", constants=params_ait)
+    compile_model(Y, target, "./CLIPModel", "CLIPVisionModel", constants=params_ait)
 
 
 
@@ -129,20 +131,21 @@ def compile(batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
-    # TODO: assert head_size in [8, 16, 32, 64, 128]
     # cfgs for model
+    embed_dim = 768
     vision_cfg = {
-        'layers': 40,
-        'width': 1408,
-        'head_width': 88,
-        'mlp_ratio': 4.3637,
+        'layers': 24,
+        'width': 1024,
+        'head_width': 64,
+        'mlp_ratio': 4.,
         'patch_size': 14,
         'image_size': 224,
     },
 
     # CLIP
+    # Note that embed_dim and vision_cfg.width
     compile_clip(
-        embed_dim=1024,
+        embed_dim=embed_dim,
         vision_cfg=vision_cfg[0],
         batch_size=batch_size,
         use_fp16_acc=use_fp16_acc,

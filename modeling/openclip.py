@@ -303,6 +303,7 @@ class VisualTransformer(nn.Module):
 
     def forward(self, x: Tensor):
         # Patch embedding: shape = [*, width, grid, grid] (pt) / [*, grid, grid, width]
+        x = 
         x = self.conv1(x)
         # Flatten to tokens: shape = [*, width, grid ** 2] (pt) / [*, grid ** 2, width]
         x = ops.reshape()(x, [x.shape()[0].value(), -1, x.shape()[3].value()]) 
@@ -400,10 +401,11 @@ class CLIPTextTransformer(nn.Module):
             self,
             embed_dim: int,
             text_cfg: CLIPTextCfg,
-            batch_size: int = 1,
-            seq_len: int = 64,
-            causal = False,
-            mask_seq = 0,
+            # TODO: remove these params
+            # batch_size: int = 1,
+            # seq_len: int = 64,
+            # causal = False,
+            # mask_seq = 0,
     ):
         super().__init__()
         if isinstance(text_cfg, dict):
