@@ -302,10 +302,9 @@ class VisualTransformer(nn.Module):
         self.proj = nn.Parameter(shape=[width, output_dim], dtype="float16")
 
     def forward(self, x: Tensor):
-        # Patch embedding: shape = [*, width, grid, grid] (pt) / [*, grid, grid, width]
-        x = 
+        # output shape (*, grid, grid, width)
         x = self.conv1(x)
-        # Flatten to tokens: shape = [*, width, grid ** 2] (pt) / [*, grid ** 2, width]
+        # output shape (*, grid ** 2, width)
         x = ops.reshape()(x, [x.shape()[0].value(), -1, x.shape()[3].value()]) 
 
         # expand shape[0] to batch_size

@@ -104,6 +104,7 @@ def benchmark_clip(
     exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4) # warm up
     t, a, b = exe_module.benchmark_with_tensors(inputs=input_ait, outputs=ys, count=100, repeat=4)
     if mode == 'text':
+        # need to be removed
         res_ait = final_projection(b, input_ait, pt_mod)
     elif mode == 'vision':
         res_ait = b['output_0']
@@ -127,7 +128,7 @@ def benchmark_clip(
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
 
 
-def benchmark(batch_size, benchmark_pt, mode):
+def benchmark(batch_size, benchmark_pt, mode, save_results):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
@@ -142,7 +143,7 @@ def benchmark(batch_size, benchmark_pt, mode):
         batch_size=batch_size,
         mode=mode,
         benchmark_pt=benchmark_pt,
-        save_results=False,
+        save_results=save_results,
     )
 
 
@@ -151,4 +152,5 @@ if __name__ == "__main__":
         batch_size=1,
         benchmark_pt=True,
         mode="vision",
+        save_results=True,
     )
